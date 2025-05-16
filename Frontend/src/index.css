@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'Omnes Medium';
+  src: url('/public/fonts/Omnes/OmnesMedium.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+body {
+  @apply text-gray-900 bg-gray-100 font-omnes;
+}
