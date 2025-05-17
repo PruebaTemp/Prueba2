@@ -22,7 +22,7 @@ const MedicalRecords: React.FC = () => {
   // Sample records - in a real app this would come from an API
   const records = [
     { id: '1', patientName: 'Juan Pérez', lastUpdate: '15 May 2025', status: 'active' },
-    { id: '2', patientName: 'Martina Pérez', lastUpdate: '10 Apr 2025', status: 'active' },
+    { id: '2', patientName: 'Martina Pérez', lastUpdate: '10 Abr 2025', status: 'active' },
     { id: '3', patientName: 'Mateo Pérez', lastUpdate: '22 Mar 2025', status: 'active' },
   ];
 
