@@ -47,17 +47,17 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="bg-essalud-bgLogin min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
           <div className="flex justify-center">
             <img 
               src="/images/logo.png" 
               alt="EsSalud" 
-              className="h-12"
+              className="h-16 mt-1 cursor-pointer transition-transform duration-300 ease-in-out hover:scale-110"
             />
           </div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          <h2 className="mt-0 mb-2 text-center text-3xl font-extrabold text-gray-900">
             EsSalud
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
@@ -163,7 +163,7 @@ const Login: React.FC = () => {
               </div>
 
               <div className="text-sm">
-                <a href="#" className="font-medium text-essalud-blue hover:text-essalud-light">
+                <a href="#" className="font-medium text-essalud-blue hover:text-essalud-orange">
                   ¿Olvidó su contraseña?
                 </a>
               </div>
@@ -173,7 +173,7 @@ const Login: React.FC = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-essalud-blue hover:bg-essalud-light focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-essalud-blue ${
+                className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-essalud-blue hover:bg-essalud-hoverBlue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-essalud-blue ${
                   loading ? 'opacity-70 cursor-not-allowed' : ''
                 }`}
               >
@@ -183,7 +183,7 @@ const Login: React.FC = () => {
               <button
                 type="button"
                 onClick={handleBiometricLogin}
-                className="group relative w-full flex justify-center py-2 px-4 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-essalud-blue"
+                className="group relative w-full flex justify-center py-2 px-4 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-essalud-blue"
               >
                 <span className="absolute left-0 inset-y-0 flex items-center pl-3">
                   <Camera className="h-5 w-5 text-gray-500 group-hover:text-gray-400" />

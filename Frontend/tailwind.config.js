@@ -11,7 +11,8 @@ export default {
           light: '#FFF',
           darkblue: '#004D7F',
           orange: '#FFBC0E',
-          totalBG: '#EDF4FA'
+          totalBG: '#EDF4FA',
+          bgLogin: '#F5F9FC'
         }
       },
       fontFamily: {
