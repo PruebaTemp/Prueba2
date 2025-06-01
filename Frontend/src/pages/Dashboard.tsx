@@ -358,16 +358,14 @@ const MedicalDashboard: React.FC = () => {
           <h2 className="text-lg font-medium text-gray-800 mb-4">Acciones Rápidas</h2>
           
           <div className="space-y-3">
-            <button className="w-full py-3 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center">
-              <FileText className="h-5 w-5 mr-2" />
-              Registrar Servicio Médico
-            </button>
-            
-            <button className="w-full py-3 px-4 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center justify-center">
+            <Link
+                to = '/medical-services'
+                className="w-full py-3 px-4 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center justify-center"
+                >
               <Stethoscope className="h-5 w-5 mr-2" />
-              Nueva Consulta
-            </button>
-            
+              Registrar Servicio Médico
+            </Link>
+
             <button className="w-full py-3 px-4 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition-colors flex items-center justify-center">
               <Clock className="h-5 w-5 mr-2" />
               Ver Historial de Paciente

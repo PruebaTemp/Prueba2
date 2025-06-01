@@ -1,6 +1,7 @@
 import { Camera, Eye, EyeOff } from 'lucide-react';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import FaceLogin from '../components/FaceLogin';
 import { useUser } from '../contexts/UserContext';
 
 const Login: React.FC = () => {
@@ -17,12 +18,12 @@ const Login: React.FC = () => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    
+
     try {
       if (!email || !password) {
         throw new Error('Por favor complete todos los campos');
       }
-      
+
       await login(email, password);
       navigate('/');
     } catch (err) {
@@ -107,50 +108,6 @@ const Login: React.FC = () => {
               </button>
             </div>
           </div>
-        ) : (
-          <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-            <input type="hidden" name="remember" defaultValue="true" />
-            <div className="rounded-md shadow-sm -space-y-px">
-              <div>
-                <label htmlFor="email-address" className="sr-only">
-                  Correo electrónico
-                </label>
-                <input
-                  id="email-address"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-essalud-blue focus:border-essalud-blue focus:z-10 sm:text-sm"
-                  placeholder="Correo electrónico"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              <div className="relative">
-                <label htmlFor="password" className="sr-only">
-                  Contraseña
-                </label>
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  required
-                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-essalud-blue focus:border-essalud-blue focus:z-10 sm:text-sm"
-                  placeholder="Contraseña"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? <EyeOff className="h-5 w-5 text-gray-400" /> : <Eye className="h-5 w-5 text-gray-400" />}
-                </button>
-              </div>
-            </div>
 
           {error && (
             <div className="rounded-md bg-red-50 p-4">
@@ -209,6 +166,24 @@ const Login: React.FC = () => {
           </div>
         </form>
       </div>
+
+      {/* Pantalla flotante FaceLogin */}
+      {showBiometricPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white p-2 rounded-2xl shadow-xl w-full max-w-lg relative">
+            <FaceLogin
+              onSuccess={handleBiometricSuccess}
+              onCancel={handleBiometricCancel}
+            />
+            <button
+              onClick={handleBiometricCancel}
+              className="absolute top-2 right-2 text-essalud-blue hover:text-gray-700"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
