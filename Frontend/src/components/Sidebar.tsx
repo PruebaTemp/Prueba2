@@ -1,13 +1,13 @@
+import {
+  Calendar,
+  FileText,
+  Home,
+  Stethoscope,
+  Users
+} from 'lucide-react';
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
-import {
-  Home,
-  FileText,
-  Calendar,
-  Users,
-  Stethoscope
-} from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
