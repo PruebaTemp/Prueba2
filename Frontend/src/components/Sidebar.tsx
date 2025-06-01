@@ -1,13 +1,13 @@
+import {
+  Calendar,
+  FileText,
+  Home,
+  Stethoscope,
+  Users
+} from 'lucide-react';
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
-import {
-  Home,
-  FileText,
-  Calendar,
-  Users,
-  Stethoscope
-} from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -72,7 +72,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
               <img
                 src="/images/logo.png"
                 alt="EsSalud"
-                className="w-full h-auto"
+                className="w-full h-auto cursor-pointer transition-transform duration-300 ease-in-out hover:scale-125"
               />
             </div>
             {isOpen && <span className="ml-2 -mt-1 text-2xl font-bold text-white">EsSalud</span>}
