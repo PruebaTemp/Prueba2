@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useUser } from '../contexts/UserContext';
+import { supabase } from '../lib/supabase';
 import {
   Calendar,
   Clock,
