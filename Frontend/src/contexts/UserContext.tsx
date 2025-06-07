@@ -60,16 +60,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Función para obtener los roles del usuario
   const getUserRoles = async (idPersona: number): Promise<UserRole[]> => {
     try {
-      // Primero obtener el id_usuario relacionado con la persona
-      const { data: usuarioData, error: usuarioError } = await supabase
-          .from('usuario')
-          .select('id_usuario')
-          .eq('id_persona', idPersona)
-          .single();
-
-      if (usuarioError) throw usuarioError;
-      if (!usuarioData) return ['patient']; // Rol por defecto
-
       // Luego obtener los roles como antes
       const { data: rolesData, error } = await supabase
           .from('asignacion_rol')
@@ -78,17 +68,17 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           nombre
         )
       `)
-          .eq('id_usuario', usuarioData.id_usuario)
+          .eq('id_persona', idPersona)
           .is('fecha_expiracion', null);
 
       if (error) throw error;
 
       const roles: UserRole[] = [];
       rolesData?.forEach((roleAssignment: any) => {
-        const roleName = roleAssignment.rol?.nombre?.toLowerCase();
-        if (roleName === 'paciente') roles.push('patient');
-        else if (roleName === 'administrador') roles.push('admin');
-        else if (roleName === 'medico' || roleName === 'personal_medico') roles.push('medical');
+        const roleName = roleAssignment.rol?.nombre;
+        if (roleName === 'Paciente') roles.push('patient');
+        else if (roleName === 'Administrador') roles.push('admin');
+        else if (roleName === 'Personal Médico' || roleName === 'personal_medico') roles.push('medical');
       });
 
       return roles.length > 0 ? roles : ['patient'];
