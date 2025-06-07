@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useUser, UserRole } from '../contexts/UserContext';
-import { 
+import {
   Bell,
-  LogOut,
   ChevronDown,
+  LogOut,
   Menu
 } from 'lucide-react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { UserRole, useUser } from '../contexts/UserContext';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -19,10 +19,16 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 
   if (!user) return null;
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  const handleLogout = async () => {
+    try {
+      await logout(); // 👈 ahora espera que se complete
+      navigate('/login'); // solo si todo fue bien
+    } catch (err) {
+      console.error('Error al cerrar sesión:', err);
+      alert('Error al cerrar sesión. Intenta nuevamente.');
+    }
   };
+
 
   const handleRoleSwitch = (role: UserRole) => {
     switchRole(role);
