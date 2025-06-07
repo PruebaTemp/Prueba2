@@ -1,506 +1,1071 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useUser } from '../contexts/UserContext';
-import { 
-  Calendar as CalendarIcon, 
-  Clock, 
-  MapPin, 
-  User, 
-  X, 
-  CheckCircle, 
+import { supabase } from '../lib/supabase';
+import {
+  Calendar as CalendarIcon,
+  Clock,
+  MapPin,
+  User,
+  X,
+  CheckCircle,
   Plus,
-  FileText
+  FileText,
+  Loader2
 } from 'lucide-react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 
+type Appointment = {
+  id_cita_medica: number;
+  id_paciente: number;
+  id_personal_medico: number;
+  estado: string;
+  actividad: string;
+  fecha_hora_registro: string;
+  paciente: {
+    persona: {
+      prenombres: string;
+      primer_apellido: string;
+      segundo_apellido: string;
+    };
+  };
+  personal_medico: {
+    persona: {
+      prenombres: string;
+      primer_apellido: string;
+      segundo_apellido: string;
+    };
+    especialidad: {
+      descripcion: string;
+    };
+  };
+  servicio_medico: {
+    fecha_servicio: string;
+    hora_inicio_servicio: string;
+    hora_fin_servicio: string;
+    consulta_medica?: {
+      id_tipo_servicio: number;
+      tipo_servicio: {
+        nombre: string;
+      };
+    };
+  };
+};
+
+type Profile = {
+  id_paciente: number;
+  id_persona: number;
+  id_historia: number;
+  persona: {
+    prenombres: string;
+    primer_apellido: string;
+    segundo_apellido: string;
+  };
+};
+
+type MedicalOrder = {
+  id_orden: number;
+  motivo: string;
+  observaciones: string;
+  id_tipo_servicio: number;
+  tipo_servicio: {
+    nombre: string;
+  };
+  id_subtipo_servicio: number;
+  subtipo_servicio: {
+    nombre: string;
+  };
+  fecha_creacion: string;
+};
+
+type Specialty = {
+  id_especialidad: number;
+  descripcion: string;
+};
+
+type Doctor = {
+  id_personal_medico: number;
+  id_persona: number;
+  id_especialidad: number;
+  persona: {
+    prenombres: string;
+    primer_apellido: string;
+    segundo_apellido: string;
+  };
+  especialidad: {
+    descripcion: string;
+  };
+  habilitado: boolean;
+};
+
 const Appointments: React.FC = () => {
   const { user } = useUser();
   const [view, setView] = useState<'list' | 'create'>('list');
-  
+
   if (!user || user.currentRole !== 'patient') {
     return (
-      <div className="container mx-auto text-center py-12">
-        <CalendarIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-        <h2 className="text-2xl font-semibold text-gray-800 mb-2">Acceso Restringido</h2>
-        <p className="text-gray-600">
-          Solo los pacientes pueden acceder a esta sección.
-        </p>
-      </div>
+        <div className="container mx-auto text-center py-12">
+          <CalendarIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+          <h2 className="text-2xl font-semibold text-gray-800 mb-2">Acceso Restringido</h2>
+          <p className="text-gray-600">
+            Solo los pacientes pueden acceder a esta sección.
+          </p>
+        </div>
     );
   }
 
   return (
-    <div className="container mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-gray-800">
-          {view === 'list' ? 'Citas Médicas' : 'Programar Nueva Cita'}
-        </h1>
-        
-        {view === 'list' && (
-          <button 
-            onClick={() => setView('create')}
-            className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
-          >
-            Programar Cita
-          </button>
-        )}
-      </div>
+      <div className="container mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-semibold text-gray-800">
+            {view === 'list' ? 'Citas Médicas' : 'Programar Nueva Cita'}
+          </h1>
 
-      {view === 'list' 
-        ? <PatientAppointmentsList onCreateNew={() => setView('create')} /> 
-        : <CreateAppointment onCancel={() => setView('list')} onSuccess={() => setView('list')} />}
-    </div>
+          {view === 'list' && (
+              <button
+                  onClick={() => setView('create')}
+                  className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
+              >
+                Programar Cita
+              </button>
+          )}
+        </div>
+
+        {view === 'list'
+            ? <PatientAppointmentsList onCreateNew={() => setView('create')} />
+            : <CreateAppointment onCancel={() => setView('list')} onSuccess={() => setView('list')} />}
+      </div>
   );
 };
 
 const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCreateNew }) => {
-  const appointments = [
-    { 
-      id: '1', 
-      doctor: 'Dr. María González', 
-      specialty: 'Cardiología', 
-      date: '15 Jun 2025', 
-      time: '09:30 AM',
-      location: 'Centro Médico Norte, Consultorio 302',
-      status: 'scheduled'
-    },
-    { 
-      id: '2', 
-      doctor: 'Dr. Carlos Ruiz', 
-      specialty: 'Oftalmología', 
-      date: '22 Jun 2025', 
-      time: '11:00 AM',
-      location: 'Centro Médico Sur, Consultorio 105',
-      status: 'scheduled'
-    },
-    { 
-      id: '3', 
-      doctor: 'Dra. Ana Martínez', 
-      specialty: 'Dermatología', 
-      date: '05 May 2025', 
-      time: '10:15 AM',
-      location: 'Centro Médico Norte, Consultorio 210',
-      status: 'completed'
-    },
-  ];
+  const { user } = useUser();
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Filter appointments by status
-  const upcomingAppointments = appointments.filter(a => a.status === 'scheduled');
-  const pastAppointments = appointments.filter(a => a.status === 'completed');
+  useEffect(() => {
+    const fetchAppointments = async () => {
+      try {
+        setLoading(true);
+
+        // Obtener el ID del paciente asociado al usuario
+        const { data: pacienteData, error: pacienteError } = await supabase
+            .from('paciente')
+            .select('id_paciente')
+            .eq('id_persona', user?.currentProfileId)
+            .single();
+
+        if (pacienteError || !pacienteData) {
+          throw pacienteError || new Error('No se encontró el paciente');
+        }
+
+        // Obtener las citas del paciente
+        const { data, error } = await supabase
+            .from('cita_medica')
+            .select(`
+            id_cita_medica,
+            id_paciente,
+            id_personal_medico,
+            estado,
+            actividad,
+            fecha_hora_registro,
+            paciente: id_paciente (persona: id_persona (prenombres, primer_apellido, segundo_apellido)),
+            personal_medico: id_personal_medico (
+              persona: id_persona (prenombres, primer_apellido, segundo_apellido),
+              especialidad: id_especialidad (descripcion)
+            ),
+            servicio_medico: servicio_medico (
+              fecha_servicio,
+              hora_inicio_servicio,
+              hora_fin_servicio,
+              consulta_medica: consulta_medica (
+                id_tipo_servicio,
+                tipo_servicio: id_tipo_servicio (nombre)
+              )
+            )
+          `)
+            .eq('id_paciente', pacienteData.id_paciente)
+            .order('fecha_hora_registro', { ascending: false });
+
+        if (error) throw error;
+
+        setAppointments(data || []);
+      } catch (err) {
+        console.error('Error fetching appointments:', err);
+        setError('Error al cargar las citas médicas');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAppointments();
+  }, [user]);
+
+  const cancelAppointment = async (appointmentId: number) => {
+    try {
+      const { error } = await supabase
+          .from('cita_medica')
+          .update({ estado: 'cancelada' })
+          .eq('id_cita_medica', appointmentId);
+
+      if (error) throw error;
+
+      // Actualizar la lista de citas
+      setAppointments(prev =>
+          prev.map(a =>
+              a.id_cita_medica === appointmentId
+                  ? { ...a, estado: 'cancelada' }
+                  : a
+          )
+      );
+    } catch (err) {
+      console.error('Error canceling appointment:', err);
+      alert('No se pudo cancelar la cita');
+    }
+  };
+
+  if (loading) {
+    return (
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+        </div>
+    );
+  }
+
+  if (error) {
+    return (
+        <div className="bg-white rounded-lg shadow-sm p-6 text-center">
+          <X className="h-12 w-12 text-red-500 mx-auto mb-3" />
+          <p className="text-red-600">{error}</p>
+        </div>
+    );
+  }
+
+  // Filtrar citas por estado
+  const upcomingAppointments = appointments.filter(a =>
+      ['programada', 'confirmada'].includes(a.estado.toLowerCase())
+  );
+  const pastAppointments = appointments.filter(a =>
+      ['completada', 'cancelada'].includes(a.estado.toLowerCase())
+  );
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-ES', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
+  const formatTime = (timeString: string) => {
+    const [hours, minutes] = timeString.split(':');
+    const hour = parseInt(hours, 10);
+    return `${hour > 12 ? hour - 12 : hour}:${minutes} ${hour >= 12 ? 'PM' : 'AM'}`;
+  };
 
   return (
-    <div className="space-y-8">
-      {/* Upcoming Appointments */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-lg font-medium text-gray-800">Próximas Citas</h2>
-        </div>
-        
-        <div className="divide-y divide-gray-200">
-          {upcomingAppointments.length > 0 ? (
-            upcomingAppointments.map(appointment => (
-              <div key={appointment.id} className="p-6">
-                <div className="flex flex-col md:flex-row md:justify-between md:items-start">
-                  <div>
-                    <h3 className="font-medium text-gray-800">{appointment.doctor}</h3>
-                    <p className="text-sm text-gray-600">{appointment.specialty}</p>
-                    
-                    <div className="mt-3 space-y-2">
-                      <div className="flex items-center text-sm">
-                        <CalendarIcon className="h-4 w-4 text-gray-500 mr-2" />
-                        <span>{appointment.date}</span>
-                      </div>
-                      <div className="flex items-center text-sm">
-                        <Clock className="h-4 w-4 text-gray-500 mr-2" />
-                        <span>{appointment.time}</span>
-                      </div>
-                      <div className="flex items-center text-sm">
-                        <MapPin className="h-4 w-4 text-gray-500 mr-2" />
-                        <span>{appointment.location}</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-4 md:mt-0 flex flex-col space-y-2">
-                    <button className="px-4 py-2 bg-red-100 text-red-800 rounded-md hover:bg-red-200 transition-colors text-sm w-full md:w-auto">
-                      Cancelar Cita
-                    </button>
-                    <button className="px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition-colors text-sm w-full md:w-auto">
-                      Reprogramar
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="p-6 text-center">
-              <CalendarIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-600">No tienes citas programadas</p>
-              <button 
-                onClick={onCreateNew}
-                className="mt-3 text-blue-600 hover:text-blue-800 font-medium"
-              >
-                Programar una cita
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-      
-      {/* Past Appointments */}
-      {pastAppointments.length > 0 && (
+      <div className="space-y-8">
+        {/* Próximas Citas */}
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           <div className="p-6 border-b border-gray-200">
-            <h2 className="text-lg font-medium text-gray-800">Historial de Citas</h2>
+            <h2 className="text-lg font-medium text-gray-800">Próximas Citas</h2>
           </div>
-          
+
           <div className="divide-y divide-gray-200">
-            {pastAppointments.map(appointment => (
-              <div key={appointment.id} className="p-6">
-                <div className="flex flex-col md:flex-row md:justify-between md:items-start">
-                  <div>
-                    <h3 className="font-medium text-gray-800">{appointment.doctor}</h3>
-                    <p className="text-sm text-gray-600">{appointment.specialty}</p>
-                    
-                    <div className="mt-3 space-y-2">
-                      <div className="flex items-center text-sm">
-                        <CalendarIcon className="h-4 w-4 text-gray-500 mr-2" />
-                        <span>{appointment.date}</span>
-                      </div>
-                      <div className="flex items-center text-sm">
-                        <Clock className="h-4 w-4 text-gray-500 mr-2" />
-                        <span>{appointment.time}</span>
-                      </div>
-                      <div className="flex items-center text-sm">
-                        <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                        <span className="text-green-600">Completada</span>
+            {upcomingAppointments.length > 0 ? (
+                upcomingAppointments.map(appointment => (
+                    <div key={appointment.id_cita_medica} className="p-6">
+                      <div className="flex flex-col md:flex-row md:justify-between md:items-start">
+                        <div>
+                          <h3 className="font-medium text-gray-800">
+                            Dr. {appointment.personal_medico.persona.primer_apellido}
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            {appointment.personal_medico.especialidad.descripcion}
+                          </p>
+
+                          <div className="mt-3 space-y-2">
+                            <div className="flex items-center text-sm">
+                              <CalendarIcon className="h-4 w-4 text-gray-500 mr-2" />
+                              <span>{formatDate(appointment.servicio_medico.fecha_servicio)}</span>
+                            </div>
+                            <div className="flex items-center text-sm">
+                              <Clock className="h-4 w-4 text-gray-500 mr-2" />
+                              <span>{formatTime(appointment.servicio_medico.hora_inicio_servicio)}</span>
+                            </div>
+                            <div className="flex items-center text-sm">
+                              <MapPin className="h-4 w-4 text-gray-500 mr-2" />
+                              <span>Consultorio {appointment.actividad}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 md:mt-0 flex flex-col space-y-2">
+                          <button
+                              onClick={() => cancelAppointment(appointment.id_cita_medica)}
+                              className="px-4 py-2 bg-red-100 text-red-800 rounded-md hover:bg-red-200 transition-colors text-sm w-full md:w-auto"
+                          >
+                            Cancelar Cita
+                          </button>
+                          <button className="px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition-colors text-sm w-full md:w-auto">
+                            Reprogramar
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  
-                  <div className="mt-4 md:mt-0">
-                    <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm">
-                      Ver Detalles
-                    </button>
-                  </div>
+                ))
+            ) : (
+                <div className="p-6 text-center">
+                  <CalendarIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                  <p className="text-gray-600">No tienes citas programadas</p>
+                  <button
+                      onClick={onCreateNew}
+                      className="mt-3 text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    Programar una cita
+                  </button>
                 </div>
-              </div>
-            ))}
+            )}
           </div>
         </div>
-      )}
-    </div>
+
+        {/* Historial de Citas */}
+        {pastAppointments.length > 0 && (
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <div className="p-6 border-b border-gray-200">
+                <h2 className="text-lg font-medium text-gray-800">Historial de Citas</h2>
+              </div>
+
+              <div className="divide-y divide-gray-200">
+                {pastAppointments.map(appointment => (
+                    <div key={appointment.id_cita_medica} className="p-6">
+                      <div className="flex flex-col md:flex-row md:justify-between md:items-start">
+                        <div>
+                          <h3 className="font-medium text-gray-800">
+                            Dr. {appointment.personal_medico.persona.primer_apellido}
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            {appointment.personal_medico.especialidad.descripcion}
+                          </p>
+
+                          <div className="mt-3 space-y-2">
+                            <div className="flex items-center text-sm">
+                              <CalendarIcon className="h-4 w-4 text-gray-500 mr-2" />
+                              <span>{formatDate(appointment.servicio_medico.fecha_servicio)}</span>
+                            </div>
+                            <div className="flex items-center text-sm">
+                              <Clock className="h-4 w-4 text-gray-500 mr-2" />
+                              <span>{formatTime(appointment.servicio_medico.hora_inicio_servicio)}</span>
+                            </div>
+                            <div className="flex items-center text-sm">
+                              <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                              <span className={`${
+                                  appointment.estado === 'completada'
+                                      ? 'text-green-600'
+                                      : 'text-red-600'
+                              }`}>
+                          {appointment.estado === 'completada' ? 'Completada' : 'Cancelada'}
+                        </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 md:mt-0">
+                          <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm">
+                            Ver Detalles
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                ))}
+              </div>
+            </div>
+        )}
+      </div>
   );
 };
 
 const CreateAppointment: React.FC<{ onCancel: () => void, onSuccess: () => void }> = ({ onCancel, onSuccess }) => {
   const { user } = useUser();
   const [step, setStep] = useState<'profile' | 'order' | 'specialty' | 'doctor' | 'datetime'>('profile');
-  const [selectedProfile, setSelectedProfile] = useState('');
-  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
-  const [selectedSpecialty, setSelectedSpecialty] = useState('');
-  const [selectedDoctor, setSelectedDoctor] = useState('');
+  const [selectedProfile, setSelectedProfile] = useState<number | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<MedicalOrder | null>(null);
+  const [selectedSpecialty, setSelectedSpecialty] = useState<Specialty | null>(null);
+  const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [selectedTime, setSelectedTime] = useState('');
+  const [selectedTime, setSelectedTime] = useState<string>('');
 
-  // Sample data
-  const profiles = user?.profiles || [];
-  const orders = user?.medicalOrders || [];
-  
-  const specialties = [
-    'Cardiología', 'Dermatología', 'Endocrinología', 'Gastroenterología',
-    'Neurología', 'Oftalmología', 'Oncología', 'Pediatría', 'Psiquiatría',
-    'Traumatología', 'Urología'
-  ];
-  
-  const doctors = [
-    { id: '1', name: 'Dr. María González', specialty: 'Cardiología', available: true },
-    { id: '2', name: 'Dr. Carlos Ruiz', specialty: 'Cardiología', available: true },
-    { id: '3', name: 'Dra. Ana Martínez', specialty: 'Cardiología', available: false },
-  ];
-  
-  const availableTimes = ['09:00 AM', '10:30 AM', '11:45 AM', '02:15 PM', '03:30 PM'];
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [orders, setOrders] = useState<MedicalOrder[]>([]);
+  const [specialties, setSpecialties] = useState<Specialty[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [availableTimes, setAvailableTimes] = useState<string[]>([]);
+  const [loading, setLoading] = useState<{[key: string]: boolean}>({});
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = () => {
-    onSuccess();
+  // Obtener perfiles de pacientes asociados al usuario
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      try {
+        setLoading(prev => ({ ...prev, profiles: true }));
+
+        // Obtener el perfil principal del usuario
+        const { data: mainProfile, error: mainError } = await supabase
+            .from('paciente')
+            .select(`
+            id_paciente,
+            id_persona,
+            id_historia,
+            persona: id_persona (prenombres, primer_apellido, segundo_apellido)
+          `)
+            .eq('id_persona', user?.currentProfileId)
+            .single();
+
+        if (mainError) throw mainError;
+
+        // Obtener perfiles de dependientes (relacionados)
+        const { data: relatedProfiles, error: relatedError } = await supabase
+            .from('relacion_personas')
+            .select(`
+            id_persona_2,
+            paciente: id_persona_2 (
+              id_paciente,
+              id_persona,
+              id_historia,
+              persona: id_persona (prenombres, primer_apellido, segundo_apellido)
+            )
+          `)
+            .eq('id_persona_1', user?.currentProfileId)
+            .eq('id_tipo_relacion', 1); // 1 = relación de dependencia
+
+        if (relatedError) throw relatedError;
+
+        const allProfiles = [
+          { ...mainProfile, isCurrentUser: true },
+          ...(relatedProfiles?.map(r => ({ ...r.paciente, isCurrentUser: false })) || [])
+        ];
+
+        setProfiles(allProfiles);
+        if (allProfiles.length === 1) {
+          setSelectedProfile(allProfiles[0].id_paciente);
+          setStep('order');
+        }
+      } catch (err) {
+        console.error('Error fetching profiles:', err);
+        setError('Error al cargar los perfiles de pacientes');
+      } finally {
+        setLoading(prev => ({ ...prev, profiles: false }));
+      }
+    };
+
+    fetchProfiles();
+  }, [user]);
+
+  // Obtener órdenes médicas cuando se selecciona un perfil
+  useEffect(() => {
+    if (step === 'order' && selectedProfile) {
+      const fetchOrders = async () => {
+        try {
+          setLoading(prev => ({ ...prev, orders: true }));
+
+          const { data, error } = await supabase
+              .from('orden_medica')
+              .select(`
+              id_orden,
+              motivo,
+              observaciones,
+              id_tipo_servicio,
+              tipo_servicio: id_tipo_servicio (nombre),
+              id_subtipo_servicio,
+              subtipo_servicio: id_subtipo_servicio (nombre),
+              fecha_creacion
+            `)
+              .eq('id_paciente', selectedProfile)
+              .eq('estado', 'pendiente');
+
+          if (error) throw error;
+
+          setOrders(data || []);
+        } catch (err) {
+          console.error('Error fetching orders:', err);
+          setError('Error al cargar las órdenes médicas');
+        } finally {
+          setLoading(prev => ({ ...prev, orders: false }));
+        }
+      };
+
+      fetchOrders();
+    }
+  }, [step, selectedProfile]);
+
+  // Obtener especialidades cuando se avanza al paso correspondiente
+  useEffect(() => {
+    if (step === 'specialty') {
+      const fetchSpecialties = async () => {
+        try {
+          setLoading(prev => ({ ...prev, specialties: true }));
+
+          const { data, error } = await supabase
+              .from('especialidad')
+              .select('id_especialidad, descripcion')
+              .order('descripcion', { ascending: true });
+
+          if (error) throw error;
+
+          setSpecialties(data || []);
+        } catch (err) {
+          console.error('Error fetching specialties:', err);
+          setError('Error al cargar las especialidades médicas');
+        } finally {
+          setLoading(prev => ({ ...prev, specialties: false }));
+        }
+      };
+
+      fetchSpecialties();
+    }
+  }, [step]);
+
+  // Obtener médicos cuando se selecciona una especialidad u orden
+  useEffect(() => {
+    if (step === 'doctor' && (selectedSpecialty || selectedOrder?.id_tipo_servicio)) {
+      const fetchDoctors = async () => {
+        try {
+          setLoading(prev => ({ ...prev, doctors: true }));
+
+          let query = supabase
+              .from('personal_medico')
+              .select(`
+              id_personal_medico,
+              id_persona,
+              id_especialidad,
+              persona: id_persona (prenombres, primer_apellido, segundo_apellido),
+              especialidad: id_especialidad (descripcion),
+              habilitado
+            `)
+              .eq('habilitado', true);
+
+          if (selectedSpecialty) {
+            query = query.eq('id_especialidad', selectedSpecialty.id_especialidad);
+          } else if (selectedOrder) {
+            // Aquí podríamos filtrar por tipo de servicio si hay una relación en la base de datos
+            // Por ahora solo mostramos todos los médicos habilitados
+          }
+
+          const { data, error } = await query;
+
+          if (error) throw error;
+
+          setDoctors(data || []);
+        } catch (err) {
+          console.error('Error fetching doctors:', err);
+          setError('Error al cargar los médicos disponibles');
+        } finally {
+          setLoading(prev => ({ ...prev, doctors: false }));
+        }
+      };
+
+      fetchDoctors();
+    }
+  }, [step, selectedSpecialty, selectedOrder]);
+
+  // Obtener horarios disponibles cuando se selecciona un médico y fecha
+  useEffect(() => {
+    if (step === 'datetime' && selectedDoctor && selectedDate) {
+      const fetchAvailableTimes = async () => {
+        try {
+          setLoading(prev => ({ ...prev, times: true }));
+
+          // Primero obtener los turnos del médico
+          const { data: shifts, error: shiftsError } = await supabase
+              .from('turno')
+              .select('hora_inicio, hora_fin')
+              .eq('id_personal_medico', selectedDoctor.id_personal_medico)
+              .eq('dia_semana', selectedDate.getDay()); // 0=Domingo, 1=Lunes, etc.
+
+          if (shiftsError) throw shiftsError;
+
+          if (!shifts || shifts.length === 0) {
+            setAvailableTimes([]);
+            return;
+          }
+
+          // Obtener las citas ya programadas para ese médico en esa fecha
+          const formattedDate = selectedDate.toISOString().split('T')[0];
+          const { data: appointments, error: appointmentsError } = await supabase
+              .from('cita_medica')
+              .select('servicio_medico (hora_inicio_servicio)')
+              .eq('id_personal_medico', selectedDoctor.id_personal_medico)
+              .eq('estado', 'programada')
+              .eq('servicio_medico.fecha_servicio', formattedDate);
+
+          if (appointmentsError) throw appointmentsError;
+
+          // Generar horarios disponibles basados en los turnos y citas existentes
+          const bookedTimes = appointments?.map(a => a.servicio_medico.hora_inicio_servicio) || [];
+          const availableSlots: string[] = [];
+
+          shifts.forEach(shift => {
+            // Generar slots cada 30 minutos dentro del turno
+            const start = new Date(`2000-01-01T${shift.hora_inicio}`);
+            const end = new Date(`2000-01-01T${shift.hora_fin}`);
+
+            let current = new Date(start);
+            while (current < end) {
+              const timeStr = current.toTimeString().substring(0, 5);
+              if (!bookedTimes.includes(timeStr)) {
+                const hour = current.getHours();
+                const minutes = current.getMinutes().toString().padStart(2, '0');
+                const ampm = hour >= 12 ? 'PM' : 'AM';
+                const displayHour = hour > 12 ? hour - 12 : hour;
+                availableSlots.push(`${displayHour}:${minutes} ${ampm}`);
+              }
+              current = new Date(current.getTime() + 30 * 60000); // Añadir 30 minutos
+            }
+          });
+
+          setAvailableTimes(availableSlots);
+        } catch (err) {
+          console.error('Error fetching available times:', err);
+          setError('Error al cargar los horarios disponibles');
+        } finally {
+          setLoading(prev => ({ ...prev, times: false }));
+        }
+      };
+
+      fetchAvailableTimes();
+    }
+  }, [step, selectedDoctor, selectedDate]);
+
+  const handleSubmit = async () => {
+    if (!selectedProfile || !selectedDoctor || !selectedDate || !selectedTime) {
+      setError('Faltan datos para programar la cita');
+      return;
+    }
+
+    try {
+      setLoading(prev => ({ ...prev, submit: true }));
+
+      // Convertir la hora seleccionada al formato de la base de datos (HH:MM:SS)
+      const [timePart, ampm] = selectedTime.split(' ');
+      const [hours, minutes] = timePart.split(':');
+      let hour = parseInt(hours, 10);
+      if (ampm === 'PM' && hour < 12) hour += 12;
+      if (ampm === 'AM' && hour === 12) hour = 0;
+      const timeString = `${hour.toString().padStart(2, '0')}:${minutes}:00`;
+
+      // Crear la cita médica
+      const { data: appointment, error: appointmentError } = await supabase
+          .from('cita_medica')
+          .insert({
+            id_paciente: selectedProfile,
+            id_personal_medico: selectedDoctor.id_personal_medico,
+            estado: 'programada',
+            actividad: 'Consulta general',
+            fecha_hora_registro: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+      if (appointmentError || !appointment) throw appointmentError || new Error('No se pudo crear la cita');
+
+      // Crear el servicio médico asociado
+      const { error: serviceError } = await supabase
+          .from('servicio_medico')
+          .insert({
+            id_cita_medica: appointment.id_cita_medica,
+            fecha_servicio: selectedDate.toISOString().split('T')[0],
+            hora_inicio_servicio: timeString,
+            hora_fin_servicio: `${(hour + 1).toString().padStart(2, '0')}:${minutes}:00`
+          });
+
+      if (serviceError) throw serviceError;
+
+      // Si hay una orden médica seleccionada, vincularla
+      if (selectedOrder) {
+        const { error: orderError } = await supabase
+            .from('cita_atencion_orden')
+            .insert({
+              id_orden: selectedOrder.id_orden,
+              id_cita_medica: appointment.id_cita_medica
+            });
+
+        if (orderError) throw orderError;
+      }
+
+      // Crear el tipo de servicio correspondiente (consulta médica)
+      const { error: consultError } = await supabase
+          .from('consulta_medica')
+          .insert({
+            id_servicio_medico: appointment.id_cita_medica,
+            motivo_consulta: selectedOrder?.motivo || 'Consulta programada',
+            id_tipo_servicio: selectedOrder?.id_tipo_servicio || 1, // 1 = Consulta
+            id_subtipo_servicio: selectedOrder?.id_subtipo_servicio || 1 // 1 = General
+          });
+
+      if (consultError) throw consultError;
+
+      onSuccess();
+    } catch (err) {
+      console.error('Error creating appointment:', err);
+      setError('Error al programar la cita');
+    } finally {
+      setLoading(prev => ({ ...prev, submit: false }));
+    }
   };
 
   const renderStepContent = () => {
+    if (error) {
+      return (
+          <div className="bg-white rounded-lg shadow-sm p-6 text-center">
+            <X className="h-12 w-12 text-red-500 mx-auto mb-3" />
+            <p className="text-red-600">{error}</p>
+            <button
+                onClick={() => setError(null)}
+                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            >
+              Reintentar
+            </button>
+          </div>
+      );
+    }
+
     switch (step) {
       case 'profile':
         return (
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-lg font-medium text-gray-800 mb-6">Seleccione el Paciente</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {profiles.map(profile => (
-                <button
-                  key={profile.id}
-                  onClick={() => {
-                    setSelectedProfile(profile.id);
-                    setStep('order');
-                  }}
-                  className={`p-4 border rounded-md text-left transition-colors ${
-                    selectedProfile === profile.id 
-                      ? 'border-blue-500 bg-blue-50' 
-                      : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-center">
-                    <User className="h-5 w-5 text-gray-400 mr-2" />
-                    <div>
-                      <p className="font-medium">{profile.name}</p>
-                      <p className="text-sm text-gray-500">
-                        {profile.isCurrentUser ? 'Titular' : 'Dependiente'}
-                      </p>
-                    </div>
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h2 className="text-lg font-medium text-gray-800 mb-6">Seleccione el Paciente</h2>
+              {loading.profiles ? (
+                  <div className="flex justify-center items-center h-32">
+                    <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
                   </div>
-                </button>
-              ))}
+              ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {user?.profiles.map(profile => (
+                        <button
+                            key={profile.id}
+                            onClick={() => {
+                              setSelectedProfile(profile.id);
+                              setStep('order');
+                            }}
+                            className={`p-4 border rounded-md text-left transition-colors ${
+                                selectedProfile === profile.id
+                                    ? 'border-blue-500 bg-blue-50'
+                                    : 'hover:bg-gray-50'
+                            }`}
+                        >
+                          <div className="flex items-center">
+                            <User className="h-5 w-5 text-gray-400 mr-2" />
+                            <div>
+                              <p className="font-medium">
+                                {profile.name}
+                              </p>
+                              <p className="text-sm text-gray-500">
+                                {profile.id === user?.currentProfileId ? 'Titular' : 'Dependiente'}
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+                    ))}
+                  </div>
+              )}
             </div>
-          </div>
         );
 
       case 'order':
         return (
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-lg font-medium text-gray-800">Órdenes Médicas Disponibles</h2>
-              <button 
-                onClick={() => setStep('specialty')}
-                className="text-sm text-blue-600 hover:text-blue-800"
-              >
-                Programar sin orden →
-              </button>
-            </div>
-            
-            {orders.length > 0 ? (
-              <div className="space-y-4">
-                {orders.map(order => (
-                  <button
-                    key={order.id}
-                    onClick={() => {
-                      setSelectedOrder(order);
-                      setStep('doctor');
-                    }}
-                    className="w-full p-4 border rounded-md text-left hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="flex items-center">
-                          <FileText className="h-5 w-5 text-blue-500 mr-2" />
-                          <h3 className="font-medium text-gray-800">{order.description}</h3>
-                        </div>
-                        <p className="text-sm text-gray-500 mt-1">
-                          Ordenado por: {order.doctorName}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          Fecha: {order.orderDate}
-                        </p>
-                      </div>
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                        order.status === 'pending'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : order.status === 'scheduled'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-green-100 text-green-800'
-                      }`}>
-                        {order.status === 'pending' ? 'Pendiente' : 
-                         order.status === 'scheduled' ? 'Programada' : 'Completada'}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <FileText className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-gray-600">No hay órdenes médicas pendientes</p>
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-lg font-medium text-gray-800">Órdenes Médicas Disponibles</h2>
                 <button
-                  onClick={() => setStep('specialty')}
-                  className="mt-4 text-blue-600 hover:text-blue-800 font-medium"
+                    onClick={() => setStep('specialty')}
+                    className="text-sm text-blue-600 hover:text-blue-800"
                 >
-                  Programar consulta médica
+                  Programar sin orden →
                 </button>
               </div>
-            )}
-          </div>
+
+              {loading.orders ? (
+                  <div className="flex justify-center items-center h-32">
+                    <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                  </div>
+              ) : orders.length > 0 ? (
+                  <div className="space-y-4">
+                    {orders.map(order => (
+                        <button
+                            key={order.id_orden}
+                            onClick={() => {
+                              setSelectedOrder(order);
+                              setStep('doctor');
+                            }}
+                            className="w-full p-4 border rounded-md text-left hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <div className="flex items-center">
+                                <FileText className="h-5 w-5 text-blue-500 mr-2" />
+                                <h3 className="font-medium text-gray-800">{order.motivo}</h3>
+                              </div>
+                              <p className="text-sm text-gray-500 mt-1">
+                                Tipo: {order.tipo_servicio.nombre} - {order.subtipo_servicio.nombre}
+                              </p>
+                              <p className="text-sm text-gray-500">
+                                Fecha: {new Date(order.fecha_creacion).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <span className="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                        Pendiente
+                      </span>
+                          </div>
+                        </button>
+                    ))}
+                  </div>
+              ) : (
+                  <div className="text-center py-8">
+                    <FileText className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                    <p className="text-gray-600">No hay órdenes médicas pendientes</p>
+                    <button
+                        onClick={() => setStep('specialty')}
+                        className="mt-4 text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      Programar consulta médica
+                    </button>
+                  </div>
+              )}
+            </div>
         );
 
       case 'specialty':
         return (
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex items-center mb-6">
-              <button 
-                onClick={() => setStep('order')}
-                className="text-blue-600 hover:text-blue-800 mr-3"
-              >
-                ← Volver
-              </button>
-              <h2 className="text-lg font-medium text-gray-800">Seleccione Especialidad</h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {specialties.map(specialty => (
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center mb-6">
                 <button
-                  key={specialty}
-                  onClick={() => {
-                    setSelectedSpecialty(specialty);
-                    setStep('doctor');
-                  }}
-                  className="p-4 border rounded-md text-left hover:bg-gray-50 transition-colors"
+                    onClick={() => setStep('order')}
+                    className="text-blue-600 hover:text-blue-800 mr-3"
                 >
-                  {specialty}
+                  ← Volver
                 </button>
-              ))}
+                <h2 className="text-lg font-medium text-gray-800">Seleccione Especialidad</h2>
+              </div>
+              {loading.specialties ? (
+                  <div className="flex justify-center items-center h-32">
+                    <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                  </div>
+              ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {specialties.map(specialty => (
+                        <button
+                            key={specialty.id_especialidad}
+                            onClick={() => {
+                              setSelectedSpecialty(specialty);
+                              setStep('doctor');
+                            }}
+                            className="p-4 border rounded-md text-left hover:bg-gray-50 transition-colors"
+                        >
+                          {specialty.descripcion}
+                        </button>
+                    ))}
+                  </div>
+              )}
             </div>
-          </div>
         );
 
       case 'doctor':
         return (
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex items-center mb-6">
-              <button 
-                onClick={() => setStep(selectedOrder ? 'order' : 'specialty')}
-                className="text-blue-600 hover:text-blue-800 mr-3"
-              >
-                ← Volver
-              </button>
-              <h2 className="text-lg font-medium text-gray-800">
-                Seleccione Médico - {selectedOrder ? selectedOrder.type : selectedSpecialty}
-              </h2>
-            </div>
-            <div className="space-y-4">
-              {doctors.map(doctor => (
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center mb-6">
                 <button
-                  key={doctor.id}
-                  disabled={!doctor.available}
-                  onClick={() => {
-                    setSelectedDoctor(doctor.id);
-                    setStep('datetime');
-                  }}
-                  className={`w-full p-4 border rounded-md text-left transition-colors ${
-                    selectedDoctor === doctor.id 
-                      ? 'border-blue-500 bg-blue-50' 
-                      : doctor.available
-                        ? 'border-gray-200 hover:bg-gray-50'
-                        : 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
-                  }`}
+                    onClick={() => setStep(selectedOrder ? 'order' : 'specialty')}
+                    className="text-blue-600 hover:text-blue-800 mr-3"
                 >
-                  <div className="flex items-center">
-                    <User className="h-5 w-5 text-gray-400 mr-2" />
-                    <div>
-                      <p className="font-medium">{doctor.name}</p>
-                      <p className="text-sm text-gray-500">{doctor.specialty}</p>
-                    </div>
-                  </div>
+                  ← Volver
                 </button>
-              ))}
+                <h2 className="text-lg font-medium text-gray-800">
+                  Seleccione Médico - {selectedOrder ? selectedOrder.tipo_servicio.nombre : selectedSpecialty?.descripcion}
+                </h2>
+              </div>
+              {loading.doctors ? (
+                  <div className="flex justify-center items-center h-32">
+                    <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                  </div>
+              ) : doctors.length > 0 ? (
+                  <div className="space-y-4">
+                    {doctors.map(doctor => (
+                        <button
+                            key={doctor.id_personal_medico}
+                            disabled={!doctor.habilitado}
+                            onClick={() => {
+                              setSelectedDoctor(doctor);
+                              setStep('datetime');
+                            }}
+                            className={`w-full p-4 border rounded-md text-left transition-colors ${
+                                selectedDoctor?.id_personal_medico === doctor.id_personal_medico
+                                    ? 'border-blue-500 bg-blue-50'
+                                    : doctor.habilitado
+                                        ? 'border-gray-200 hover:bg-gray-50'
+                                        : 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
+                            }`}
+                        >
+                          <div className="flex items-center">
+                            <User className="h-5 w-5 text-gray-400 mr-2" />
+                            <div>
+                              <p className="font-medium">
+                                Dr. {doctor.persona.primer_apellido}
+                              </p>
+                              <p className="text-sm text-gray-500">
+                                {doctor.especialidad.descripcion}
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+                    ))}
+                  </div>
+              ) : (
+                  <div className="text-center py-8">
+                    <User className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                    <p className="text-gray-600">No hay médicos disponibles</p>
+                    <button
+                        onClick={() => setStep(selectedOrder ? 'order' : 'specialty')}
+                        className="mt-4 text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      Volver atrás
+                    </button>
+                  </div>
+              )}
             </div>
-          </div>
         );
 
       case 'datetime':
         return (
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex items-center mb-6">
-              <button 
-                onClick={() => setStep('doctor')}
-                className="text-blue-600 hover:text-blue-800 mr-3"
-              >
-                ← Volver
-              </button>
-              <h2 className="text-lg font-medium text-gray-800">Seleccione Fecha y Hora</h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="font-medium text-gray-800 mb-4">Fecha</h3>
-                <Calendar
-                  onChange={setSelectedDate}
-                  value={selectedDate}
-                  minDate={new Date()}
-                  className="w-full border rounded-md p-2"
-                />
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center mb-6">
+                <button
+                    onClick={() => setStep('doctor')}
+                    className="text-blue-600 hover:text-blue-800 mr-3"
+                >
+                  ← Volver
+                </button>
+                <h2 className="text-lg font-medium text-gray-800">Seleccione Fecha y Hora</h2>
               </div>
 
-              <div>
-                <h3 className="font-medium text-gray-800 mb-4">Horarios Disponibles</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  {availableTimes.map(time => (
-                    <button
-                      key={time}
-                      onClick={() => setSelectedTime(time)}
-                      className={`p-3 border rounded-md transition-colors ${
-                        selectedTime === time
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:bg-gray-50'
-                      }`}
-                    >
-                      {time}
-                    </button>
-                  ))}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="font-medium text-gray-800 mb-4">Fecha</h3>
+                  <Calendar
+                      onChange={setSelectedDate}
+                      value={selectedDate}
+                      minDate={new Date()}
+                      className="w-full border rounded-md p-2"
+                  />
                 </div>
 
-                {selectedDate && selectedTime && (
-                  <div className="mt-6 space-y-4">
-                    <div className="bg-gray-50 p-4 rounded-md">
-                      <h4 className="font-medium text-gray-800 mb-2">Resumen de la Cita</h4>
-                      <div className="space-y-2 text-sm">
-                        <p>
-                          <span className="text-gray-500">Paciente:</span>{' '}
-                          {profiles.find(p => p.id === selectedProfile)?.name}
-                        </p>
-                        {selectedOrder ? (
-                          <>
-                            <p>
-                              <span className="text-gray-500">Orden:</span>{' '}
-                              {selectedOrder.description}
-                            </p>
-                            <p>
-                              <span className="text-gray-500">Tipo:</span>{' '}
-                              {selectedOrder.type}
-                            </p>
-                          </>
-                        ) : (
-                          <p>
-                            <span className="text-gray-500">Especialidad:</span>{' '}
-                            {selectedSpecialty}
-                          </p>
-                        )}
-                        <p>
-                          <span className="text-gray-500">Médico:</span>{' '}
-                          {doctors.find(d => d.id === selectedDoctor)?.name}
-                        </p>
-                        <p>
-                          <span className="text-gray-500">Fecha:</span>{' '}
-                          {selectedDate.toLocaleDateString()}
-                        </p>
-                        <p>
-                          <span className="text-gray-500">Hora:</span>{' '}
-                          {selectedTime}
-                        </p>
+                <div>
+                  <h3 className="font-medium text-gray-800 mb-4">Horarios Disponibles</h3>
+                  {loading.times ? (
+                      <div className="flex justify-center items-center h-32">
+                        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
                       </div>
-                    </div>
+                  ) : selectedDate ? (
+                      availableTimes.length > 0 ? (
+                          <>
+                            <div className="grid grid-cols-2 gap-2">
+                              {availableTimes.map(time => (
+                                  <button
+                                      key={time}
+                                      onClick={() => setSelectedTime(time)}
+                                      className={`p-3 border rounded-md transition-colors ${
+                                          selectedTime === time
+                                              ? 'border-blue-500 bg-blue-50'
+                                              : 'border-gray-200 hover:bg-gray-50'
+                                      }`}
+                                  >
+                                    {time}
+                                  </button>
+                              ))}
+                            </div>
 
-                    <div className="flex space-x-3">
-                      <button
-                        onClick={onCancel}
-                        className="flex-1 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        onClick={handleSubmit}
-                        className="flex-1 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                      >
-                        Confirmar Cita
-                      </button>
-                    </div>
-                  </div>
-                )}
+                            {selectedTime && (
+                                <div className="mt-6 space-y-4">
+                                  <div className="bg-gray-50 p-4 rounded-md">
+                                    <h4 className="font-medium text-gray-800 mb-2">Resumen de la Cita</h4>
+                                    <div className="space-y-2 text-sm">
+                                      <p>
+                                        <span className="text-gray-500">Paciente:</span>{' '}
+                                        {profiles.find(p => p.id_paciente === selectedProfile)?.persona.prenombres}
+                                      </p>
+                                      {selectedOrder ? (
+                                          <>
+                                            <p>
+                                              <span className="text-gray-500">Orden:</span>{' '}
+                                              {selectedOrder.motivo}
+                                            </p>
+                                            <p>
+                                              <span className="text-gray-500">Tipo:</span>{' '}
+                                              {selectedOrder.tipo_servicio.nombre}
+                                            </p>
+                                          </>
+                                      ) : (
+                                          <p>
+                                            <span className="text-gray-500">Especialidad:</span>{' '}
+                                            {selectedSpecialty?.descripcion}
+                                          </p>
+                                      )}
+                                      <p>
+                                        <span className="text-gray-500">Médico:</span>{' '}
+                                        Dr. {selectedDoctor?.persona.primer_apellido}
+                                      </p>
+                                      <p>
+                                        <span className="text-gray-500">Fecha:</span>{' '}
+                                        {selectedDate?.toLocaleDateString()}
+                                      </p>
+                                      <p>
+                                        <span className="text-gray-500">Hora:</span>{' '}
+                                        {selectedTime}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex space-x-3">
+                                    <button
+                                        onClick={onCancel}
+                                        className="flex-1 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+                                    >
+                                      Cancelar
+                                    </button>
+                                    <button
+                                        onClick={handleSubmit}
+                                        disabled={loading.submit}
+                                        className="flex-1 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+                                    >
+                                      {loading.submit ? (
+                                          <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                                      ) : (
+                                          'Confirmar Cita'
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                            )}
+                          </>
+                      ) : (
+                          <div className="text-center py-8">
+                            <Clock className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                            <p className="text-gray-600">No hay horarios disponibles para esta fecha</p>
+                            <p className="text-sm text-gray-500 mt-2">
+                              Por favor seleccione otra fecha o médico
+                            </p>
+                          </div>
+                      )
+                  ) : (
+                      <div className="text-center py-8">
+                        <CalendarIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                        <p className="text-gray-600">Seleccione una fecha para ver los horarios disponibles</p>
+                      </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
         );
     }
   };

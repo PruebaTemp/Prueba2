@@ -60,7 +60,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Función para obtener los roles del usuario
   const getUserRoles = async (idPersona: number): Promise<UserRole[]> => {
     try {
-      // Luego obtener los roles como antes
+      // Luego obtener los roles
       const { data: rolesData, error } = await supabase
           .from('asignacion_rol')
           .select(`
