@@ -68,17 +68,17 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           nombre
         )
       `)
-          .eq('id_persona', idPersona)
-          .is('fecha_expiracion', null);
+          .eq('id_persona', idPersona);
 
       if (error) throw error;
 
       const roles: UserRole[] = [];
+      console.log(rolesData);
       rolesData?.forEach((roleAssignment: any) => {
         const roleName = roleAssignment.rol?.nombre;
         if (roleName === 'Paciente') roles.push('patient');
-        else if (roleName === 'Administrador') roles.push('admin');
-        else if (roleName === 'Personal Médico' || roleName === 'personal_medico') roles.push('medical');
+        if (roleName === 'Asistente Administrativo') roles.push('admin');
+        if (roleName === 'Personal Médico' || roleName === 'personal_medico') roles.push('medical');
       });
 
       return roles.length > 0 ? roles : ['patient'];
