@@ -286,7 +286,7 @@ CREATE TABLE IF NOT EXISTS cita_medica (
     id_personal_medico INT NOT NULL,
     estado VARCHAR(50) NOT NULL,
     actividad VARCHAR(100),
-    fecha_hora_registro TIMESTAMP NOT NULL,
+    fecha_hora_programada TIMESTAMP NOT NULL,
     PRIMARY KEY (id_cita_medica),
     CONSTRAINT id_paciente
     FOREIGN KEY (id_paciente)
@@ -1409,7 +1409,7 @@ INSERT INTO morbilidad (
 -- DATOS PARA LA TABLA CITA_MEDICA
 
 INSERT INTO cita_medica (
-    id_cita_medica, id_paciente, id_personal_medico, estado, actividad, fecha_hora_registro
+    id_cita_medica, id_paciente, id_personal_medico, estado, actividad, fecha_hora_programada
 ) VALUES
 (1, 12, 5, 'Completado', 'Consulta general', '2025-05-01 09:00:00'),
 (2, 7, 14, 'Pendiente', 'Control de presión arterial', '2025-05-01 10:30:00'),
@@ -1966,3 +1966,33 @@ INSERT INTO control (id_servicio_medico, pulso_cardiaco, presion_diastolica, pre
 (88, 68, 70, 110, 99, 'Estable', 'Alta programada para mañana'),
 (89, 76, 84, 128, 97, 'Estable con dolor', 'Analgesia con paracetamol cada 8 horas'),
 (90, 82, 88, 135, 96, 'Estable post-infarto', 'Monitoreo continuo en UCI');
+
+-- Actualización de secuencias para evitar colisiones con valores existentes
+
+SELECT setval('tipo_servicio_id_tipo_servicio_seq', COALESCE(MAX(id_tipo_servicio), 0) + 1, false) FROM tipo_servicio;
+SELECT setval('subtipo_servicio_id_subtipo_servicio_seq', COALESCE(MAX(id_subtipo_servicio), 0) + 1, false) FROM subtipo_servicio;
+SELECT setval('tipo_relacion_id_tipo_relacion_seq', COALESCE(MAX(id_tipo_relacion), 0) + 1, false) FROM tipo_relacion;
+SELECT setval('especialidad_id_especialidad_seq', COALESCE(MAX(id_especialidad), 0) + 1, false) FROM especialidad;
+SELECT setval('medicamento_id_medicamento_seq', COALESCE(MAX(id_medicamento), 0) + 1, false) FROM medicamento;
+SELECT setval('cie10_id_cie10_seq', COALESCE(MAX(id_cie10), 0) + 1, false) FROM cie10;
+SELECT setval('morbilidad_id_morbilidad_seq', COALESCE(MAX(id_morbilidad), 0) + 1, false) FROM morbilidad;
+SELECT setval('alergia_id_alergia_seq', COALESCE(MAX(id_alergia), 0) + 1, false) FROM alergia;
+SELECT setval('estado_historia_clinica_id_estado_seq', COALESCE(MAX(id_estado), 0) + 1, false) FROM estado_historia_clinica;
+SELECT setval('rol_id_rol_seq', COALESCE(MAX(id_rol), 0) + 1, false) FROM rol;
+SELECT setval('persona_id_persona_seq', COALESCE(MAX(id_persona), 0) + 1, false) FROM persona;
+SELECT setval('perfil_medico_id_perfil_medico_seq', COALESCE(MAX(id_perfil_medico), 0) + 1, false) FROM perfil_medico;
+SELECT setval('perfil_alergias_id_perfil_alergias_seq', COALESCE(MAX(id_perfil_alergias), 0) + 1, false) FROM perfil_alergias;
+SELECT setval('administrador_id_administrador_seq', COALESCE(MAX(id_administrador), 0) + 1, false) FROM administrador;
+SELECT setval('personal_medico_id_personal_medico_seq', COALESCE(MAX(id_personal_medico), 0) + 1, false) FROM personal_medico;
+SELECT setval('turno_id_turno_seq', COALESCE(MAX(id_turno), 0) + 1, false) FROM turno;
+SELECT setval('historia_clinica_id_historia_seq', COALESCE(MAX(id_historia), 0) + 1, false) FROM historia_clinica;
+SELECT setval('paciente_id_paciente_seq', COALESCE(MAX(id_paciente), 0) + 1, false) FROM paciente;
+SELECT setval('asignacion_rol_id_asignacion_rol_seq', COALESCE(MAX(id_asignacion_rol), 0) + 1, false) FROM asignacion_rol;
+SELECT setval('solicitud_id_solicitud_seq', COALESCE(MAX(id_solicitud), 0) + 1, false) FROM solicitud;
+SELECT setval('cita_medica_id_cita_medica_seq', COALESCE(MAX(id_cita_medica), 0) + 1, false) FROM cita_medica;
+SELECT setval('servicio_medico_id_servicio_medico_seq', COALESCE(MAX(id_servicio_medico), 0) + 1, false) FROM servicio_medico;
+SELECT setval('consulta_medica_id_consulta_medica_seq', COALESCE(MAX(id_consulta_medica), 0) + 1, false) FROM consulta_medica;
+SELECT setval('orden_medica_id_orden_seq', COALESCE(MAX(id_orden), 0) + 1, false) FROM orden_medica;
+SELECT setval('diagnostico_id_diagnostico_seq', COALESCE(MAX(id_diagnostico), 0) + 1, false) FROM diagnostico;
+SELECT setval('unidad_tiempo_id_unid_tiempo_seq', COALESCE(MAX(id_unid_tiempo), 0) + 1, false) FROM unidad_tiempo;
+SELECT setval('tratamiento_id_tratamiento_seq', COALESCE(MAX(id_tratamiento), 0) + 1, false) FROM tratamiento;
