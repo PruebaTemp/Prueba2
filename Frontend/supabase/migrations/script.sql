@@ -9,10 +9,20 @@ DROP TABLE IF EXISTS examen;
 DROP TABLE IF EXISTS tratamiento;
 DROP TABLE IF EXISTS diagnostico;
 DROP TABLE IF EXISTS consulta_medica;
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables 
+               WHERE table_name = 'cita_medica' 
+               AND table_schema = 'public') THEN
+        ALTER TABLE cita_medica DROP CONSTRAINT IF EXISTS fk_orden;
+    END IF;
+END$$;
+
+DROP TABLE IF EXISTS orden_medica;
 DROP TABLE IF EXISTS servicio_medico;
 DROP TABLE IF EXISTS cita_medica;
 DROP TABLE IF EXISTS solicitud;
-DROP TABLE IF EXISTS orden_medica;
 DROP TABLE IF EXISTS turno;
 DROP TABLE IF EXISTS asignacion_rol;
 DROP TABLE IF EXISTS paciente;
@@ -269,23 +279,6 @@ CREATE TABLE IF NOT EXISTS turno (
     REFERENCES personal_medico(id_personal_medico)
 );
 
-CREATE TABLE IF NOT EXISTS orden_medica (
-    id_orden SERIAL,
-    motivo TEXT,
-    observaciones TEXT,
-    id_tipo_servicio INT NOT NULL,
-    id_subtipo_servicio INT NOT NULL,
-    cantidad INT NOT NULL DEFAULT 1 CHECK (cantidad > 0),
-    estado TEXT NOT NULL DEFAULT 'Pendiente',
-    PRIMARY KEY (id_orden),
-    CONSTRAINT id_tipo_servicio
-    FOREIGN KEY (id_tipo_servicio)
-    REFERENCES tipo_servicio(id_tipo_servicio),
-    CONSTRAINT id_subtipo_servicio
-    FOREIGN KEY (id_subtipo_servicio)
-    REFERENCES subtipo_servicio(id_subtipo_servicio)
-);
-
 CREATE TABLE IF NOT EXISTS solicitud (
     id_solicitud SERIAL,
     id_persona INT NOT NULL,
@@ -304,7 +297,7 @@ CREATE TABLE IF NOT EXISTS solicitud (
 );
 
 CREATE TABLE IF NOT EXISTS cita_medica (
-    id_cita_medica SERIAL,
+    id_cita_medica SERIAL PRIMARY KEY,
     id_orden INT,
     id_paciente INT NOT NULL,
     id_personal_medico INT NOT NULL,
@@ -312,28 +305,29 @@ CREATE TABLE IF NOT EXISTS cita_medica (
     actividad VARCHAR(100),
     fecha_hora_programada TIMESTAMP NOT NULL,
     fecha_hora_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id_cita_medica),
-    CONSTRAINT id_paciente
-    FOREIGN KEY (id_paciente)
-    REFERENCES paciente(id_paciente),
-    CONSTRAINT id_personal_medico
-    FOREIGN KEY (id_personal_medico)
-    REFERENCES personal_medico(id_personal_medico),
-    CONSTRAINT id_orden
-    FOREIGN KEY (id_orden)
-    REFERENCES orden_medica(id_orden)
+    FOREIGN KEY (id_paciente) REFERENCES paciente(id_paciente),
+    FOREIGN KEY (id_personal_medico) REFERENCES personal_medico(id_personal_medico)
 );
 
 CREATE TABLE IF NOT EXISTS servicio_medico (
-    id_servicio_medico SERIAL,
+    id_servicio_medico SERIAL PRIMARY KEY,
     id_cita_medica INT NOT NULL,
     fecha_servicio DATE NOT NULL,
     hora_inicio_servicio TIME NOT NULL,
     hora_fin_servicio TIME NOT NULL,
-    PRIMARY KEY (id_servicio_medico),
-    CONSTRAINT id_cita_medica 
-    FOREIGN KEY (id_cita_medica) 
-    REFERENCES cita_medica(id_cita_medica)
+    FOREIGN KEY (id_cita_medica) REFERENCES cita_medica(id_cita_medica)
+);
+
+CREATE TABLE IF NOT EXISTS orden_medica (
+    id_orden SERIAL PRIMARY KEY,
+    id_servicio_medico INT NOT NULL,
+    motivo TEXT,
+    observaciones TEXT,
+    id_subtipo_servicio INT NOT NULL,
+    cantidad INT NOT NULL DEFAULT 1 CHECK (cantidad > 0),
+    estado TEXT NOT NULL DEFAULT 'Pendiente',
+    FOREIGN KEY (id_servicio_medico) REFERENCES servicio_medico(id_servicio_medico),
+    FOREIGN KEY (id_subtipo_servicio) REFERENCES subtipo_servicio(id_subtipo_servicio)
 );
 
 -- Tablas que dependen de servicio_medico
@@ -1398,61 +1392,6 @@ INSERT INTO morbilidad (
 (49, 46, 'Consejería sexual en adultos mayores', '2024-04-26', 'Educativa', 'N/A', FALSE),
 (50, 33, 'Fiebre sin foco aparente', '2024-05-03', 'Aguda', 'Moderada', TRUE);
 
--- DATOS PARA LA TABLA ORDEN_MEDICA
-
-INSERT INTO orden_medica (id_orden, motivo, observaciones, id_tipo_servicio, id_subtipo_servicio, cantidad, estado) VALUES
--- CONSULTAS MÉDICAS
-(1, 'Control médico general de rutina', 'Paciente refiere buen estado general, requiere evaluación preventiva anual', 1, 1, 1, 'Agendada'),
-(2, 'Erupción cutánea en extremidades superiores', 'Lesiones pruriginosas de 5 días de evolución, posible dermatitis de contacto', 1, 5, 1, 'Agendada'),
-(3, 'Seguimiento de tratamiento dermatológico', 'Control post-tratamiento para dermatitis atópica, evaluar respuesta terapéutica', 1, 5, 1, 'Agendada'),
-(4, 'Control de diabetes mellitus tipo 2', 'Paciente diabético en tratamiento, requiere ajuste de medicación y seguimiento', 1, 12, 1, 'Agendada'),
-(5, 'Seguimiento de hipertensión arterial', 'Control de presión arterial y adherencia al tratamiento antihipertensivo', 1, 12, 1, 'Agendada'),
-(6, 'Síntomas respiratorios leves', 'Tos seca y congestión nasal de 3 días, descartar infección respiratoria', 1, 9, 1, 'Agendada'),
-(7, 'Control ginecológico de rutina', 'Paciente de 35 años para evaluación ginecológica anual y citología', 1, 3, 1, 'Agendada'),
-(8, 'Consulta por cefalea recurrente', 'Episodios de cefalea tensional, evaluar factores desencadenantes', 1, 9, 1, 'Agendada'),
-(9, 'Dolor precordial atípico', 'Paciente refiere molestias torácicas intermitentes, descartar origen cardíaco', 1, 4, 1, 'Agendada'),
-(10, 'Evaluación psicológica infantil', 'Niño de 8 años con dificultades de atención y comportamiento escolar', 1, 8, 1, 'Agendada'),
-(11, 'Sospecha de COVID-19', 'Paciente con síntomas compatibles: fiebre, tos y anosmia de 2 días', 2, 17, 1, 'Agendada'),
-(12, 'Evaluación de masa abdominal', 'Paciente refiere dolor abdominal y masa palpable, requiere TAC para diagnóstico', 2, 21, 1, 'Agendada'),
-(13, 'Chequeo médico ocupacional anual', 'Trabajador de oficina para evaluación médica laboral de rutina', 2, 25, 1, 'Agendada'),
-(14, 'Control post-COVID-19', 'Paciente recuperado de COVID-19, control serológico a los 3 meses', 2, 17, 1, 'Agendada'),
-(15, 'Examen médico pre-empleo', 'Candidato a puesto administrativo requiere evaluación preocupacional', 2, 24, 1, 'Agendada'),
-(16, 'Seguimiento de tratamiento oncológico', 'Control imagenológico post-quimioterapia para evaluar respuesta', 2, 21, 1, 'Agendada'),
-(17, 'Infección urinaria recurrente', 'Paciente femenina con disuria y polaquiuria, tercer episodio en 6 meses', 2, 16, 1, 'Agendada'),
-(18, 'Trauma en extremidad superior', 'Caída con dolor e impotencia funcional en muñeca derecha', 2, 18, 1, 'Agendada'),
-(19, 'Evaluación ergonómica laboral', 'Trabajador con dolor lumbar crónico, evaluar puesto de trabajo', 2, 28, 1, 'Agendada'),
-(20, 'Control de función renal', 'Paciente hipertenso en seguimiento, control de creatinina y proteinuria', 2, 16, 1, 'Agendada'),
-(21, 'Rehabilitación post-ACV', 'Paciente con secuelas neurológicas de ACV, requiere neurorehabilitación integral', 3, 33, 1, 'Agendada'),
-(22, 'Trastorno del lenguaje infantil', 'Niño de 4 años con retraso en desarrollo del lenguaje expresivo', 3, 32, 1, 'Agendada'),
-(23, 'Lumbalgia crónica', 'Dolor lumbar de 6 meses de evolución, limitación funcional moderada', 3, 29, 1, 'Agendada'),
-(24, 'Rehabilitación post-fractura', 'Fractura de húmero consolidada, recuperar rango de movimiento', 3, 33, 1, 'Agendada'),
-(25, 'EPOC en tratamiento', 'Paciente con enfermedad pulmonar obstructiva crónica, disnea grado II', 3, 30, 1, 'Agendada'),
-(26, 'Tendinitis de hombro', 'Dolor y limitación funcional en hombro derecho, mejorar movilidad', 3, 29, 1, 'Agendada'),
-(27, 'Asma bronquial en niño', 'Paciente pediátrico con crisis asmáticas frecuentes, educación respiratoria', 3, 30, 1, 'Agendada'),
-(28, 'Secuelas de traumatismo craneal', 'Déficit cognitivo post-TEC, rehabilitación neuropsicológica', 3, 33, 1, 'Agendada'),
-(29, 'Fibrosis pulmonar', 'Paciente con diagnóstico reciente de fibrosis pulmonar idiopática', 3, 30, 1, 'Agendada'),
-(30, 'Artritis reumatoide', 'Rigidez matutina y dolor articular, mantener funcionalidad', 3, 29, 1, 'Agendada'),
-(31, 'Embarazo de término gemelar', 'Gestante de 38 semanas con presentación podálica de segundo gemelar', 4, 37, 1, 'Agendada'),
-(32, 'Maloclusión dental severa', 'Paciente de 16 años con apiñamiento dental y mordida cruzada', 4, 36, 1, 'Agendada'),
-(33, 'Apendicitis aguda', 'Dolor en fosa ilíaca derecha, leucocitosis y signos de irritación peritoneal', 4, 39, 1, 'Agendada'),
-(34, 'Necrosis pulpar dental', 'Pieza dental 26 con dolor intenso y diagnóstico de pulpitis irreversible', 4, 35, 1, 'Agendada'),
-(35, 'Colelitiasis sintomática', 'Cólicos biliares recurrentes, ecografía confirma litiasis vesicular', 4, 42, 1, 'Agendada'),
-(36, 'Colecistitis aguda', 'Dolor en hipocondrio derecho con signos inflamatorios, Murphy positivo', 4, 42, 1, 'Agendada'),
-(37, 'Hernia inguinal bilateral', 'Paciente masculino con hernias inguinales sintomáticas bilaterales', 4, 41, 1, 'Agendada'),
-(38, 'Caries profunda molar', 'Pieza dental 36 con destrucción coronaria extensa, preservar diente', 4, 35, 1, 'Agendada'),
-(39, 'Colangitis aguda', 'Tríada de Charcot completa, requiere colecistectomía de urgencia', 4, 43, 1, 'Agendada'),
-(40, 'Trabajo de parto prolongado', 'Distocia de presentación, FCF no reactiva, cesárea de urgencia', 4, 37, 1, 'Agendada'),
-(41, 'Politraumatismo por accidente de tránsito', 'Paciente con trauma múltiple, fractura de fémur y contusión pulmonar', 5, 54, 1, 'Agendada'),
-(42, 'Infarto agudo de miocardio', 'Dolor torácico típico con elevación del ST, requiere UCI', 5, 48, 1, 'Agendada'),
-(43, 'Crisis hipertensiva', 'TA 220/120 mmHg con cefalea intensa y visión borrosa', 5, 52, 1, 'Agendada'),
-(44, 'Neumonía bilateral', 'Paciente adulto mayor con neumonía adquirida en comunidad severa', 5, 46, 1, 'Agendada'),
-(45, 'Shock séptico', 'Paciente con foco abdominal, hipotensión refractaria y falla multiorgánica', 5, 48, 1, 'Agendada'),
-(46, 'Amenaza de parto prematuro', 'Gestante de 32 semanas con contracciones uterinas y modificaciones cervicales', 5, 49, 1, 'Agendada'),
-(47, 'Preeclampsia severa', 'TA 170/110, proteinuria y cefalea, embarazo de 36 semanas', 5, 49, 1, 'Agendada'),
-(48, 'Edema agudo pulmonar', 'Disnea súbita, ortopnea y estertores crepitantes bilaterales', 5, 48, 1, 'Agendada'),
-(49, 'Quemaduras de segundo grado', 'Quemaduras en 25% de superficie corporal por escaldadura', 5, 50, 1, 'Agendada'),
-(50, 'Intoxicación por organofosforados', 'Paciente rural con síndrome colinérgico por exposición a pesticidas', 5, 54, 1, 'Agendada');
-
 -- DATOS PARA LA TABLA CITA_MEDICA
 
 INSERT INTO cita_medica (
@@ -1643,6 +1582,63 @@ INSERT INTO servicio_medico (id_cita_medica, fecha_servicio, hora_inicio_servici
 (89, '2025-04-30', '11:00:00', '11:20:00'),
 (90, '2025-04-30', '12:00:00', '12:30:00');
 
+-- DATOS PARA LA TABLA ORDEN_MEDICA
+
+INSERT INTO orden_medica (id_orden, id_servicio_medico, motivo, observaciones, id_subtipo_servicio, cantidad, estado) VALUES
+(1, 1, 'Control médico general de rutina', 'Paciente refiere buen estado general, requiere evaluación preventiva anual', 1, 1, 'Agendada'),
+(2, 2, 'Erupción cutánea en extremidades superiores', 'Lesiones pruriginosas de 5 días de evolución, posible dermatitis de contacto', 5, 1, 'Agendada'),
+(3, 3, 'Seguimiento de tratamiento dermatológico', 'Control post-tratamiento para dermatitis atópica, evaluar respuesta terapéutica', 5, 1, 'Agendada'),
+(4, 4, 'Control de diabetes mellitus tipo 2', 'Paciente diabético en tratamiento, requiere ajuste de medicación y seguimiento', 12, 1, 'Agendada'),
+(5, 5, 'Seguimiento de hipertensión arterial', 'Control de presión arterial y adherencia al tratamiento antihipertensivo', 12, 1, 'Agendada'),
+(6, 6, 'Síntomas respiratorios leves', 'Tos seca y congestión nasal de 3 días, descartar infección respiratoria', 9, 1, 'Agendada'),
+(7, 7, 'Control ginecológico de rutina', 'Paciente de 35 años para evaluación ginecológica anual y citología', 3, 1, 'Agendada'),
+(8, 8, 'Consulta por cefalea recurrente', 'Episodios de cefalea tensional, evaluar factores desencadenantes', 9, 1, 'Agendada'),
+(9, 9, 'Dolor precordial atípico', 'Paciente refiere molestias torácicas intermitentes, descartar origen cardíaco', 4, 1, 'Agendada'),
+(10, 10, 'Evaluación psicológica infantil', 'Niño de 8 años con dificultades de atención y comportamiento escolar', 8, 1, 'Agendada'),
+(11, 11, 'Sospecha de COVID-19', 'Paciente con síntomas compatibles: fiebre, tos y anosmia de 2 días', 17, 1, 'Agendada'),
+(12, 12, 'Evaluación de masa abdominal', 'Paciente refiere dolor abdominal y masa palpable, requiere TAC para diagnóstico', 21, 1, 'Agendada'),
+(13, 13, 'Chequeo médico ocupacional anual', 'Trabajador de oficina para evaluación médica laboral de rutina', 25, 1, 'Agendada'),
+(14, 14, 'Control post-COVID-19', 'Paciente recuperado de COVID-19, control serológico a los 3 meses', 17, 1, 'Agendada'),
+(15, 15, 'Examen médico pre-empleo', 'Candidato a puesto administrativo requiere evaluación preocupacional', 24, 1, 'Agendada'),
+(16, 16, 'Seguimiento de tratamiento oncológico', 'Control imagenológico post-quimioterapia para evaluar respuesta', 21, 1, 'Agendada'),
+(17, 17, 'Infección urinaria recurrente', 'Paciente femenina con disuria y polaquiuria, tercer episodio en 6 meses', 16, 1, 'Agendada'),
+(18, 18, 'Trauma en extremidad superior', 'Caída con dolor e impotencia funcional en muñeca derecha', 18, 1, 'Agendada'),
+(19, 19, 'Evaluación ergonómica laboral', 'Trabajador con dolor lumbar crónico, evaluar puesto de trabajo', 28, 1, 'Agendada'),
+(20, 20, 'Control de función renal', 'Paciente hipertenso en seguimiento, control de creatinina y proteinuria', 16, 1, 'Agendada'),
+(21, 21, 'Rehabilitación post-ACV', 'Paciente con secuelas neurológicas de ACV, requiere neurorehabilitación integral', 33, 1, 'Agendada'),
+(22, 22, 'Trastorno del lenguaje infantil', 'Niño de 4 años con retraso en desarrollo del lenguaje expresivo', 32, 1, 'Agendada'),
+(23, 23, 'Lumbalgia crónica', 'Dolor lumbar de 6 meses de evolución, limitación funcional moderada', 29, 1, 'Agendada'),
+(24, 24, 'Rehabilitación post-fractura', 'Fractura de húmero consolidada, recuperar rango de movimiento', 33, 1, 'Agendada'),
+(25, 25, 'EPOC en tratamiento', 'Paciente con enfermedad pulmonar obstructiva crónica, disnea grado II', 30, 1, 'Agendada'),
+(26, 26, 'Tendinitis de hombro', 'Dolor y limitación funcional en hombro derecho, mejorar movilidad', 29, 1, 'Agendada'),
+(27, 27, 'Asma bronquial en niño', 'Paciente pediátrico con crisis asmáticas frecuentes, educación respiratoria', 30, 1, 'Agendada'),
+(28, 28, 'Secuelas de traumatismo craneal', 'Déficit cognitivo post-TEC, rehabilitación neuropsicológica', 33, 1, 'Agendada'),
+(29, 29, 'Fibrosis pulmonar', 'Paciente con diagnóstico reciente de fibrosis pulmonar idiopática', 30, 1, 'Agendada'),
+(30, 30, 'Artritis reumatoide', 'Rigidez matutina y dolor articular, mantener funcionalidad', 29, 1, 'Agendada'),
+(31, 31, 'Embarazo de término gemelar', 'Gestante de 38 semanas con presentación podálica de segundo gemelar', 37, 1, 'Agendada'),
+(32, 32, 'Maloclusión dental severa', 'Paciente de 16 años con apiñamiento dental y mordida cruzada', 36, 1, 'Agendada'),
+(33, 33, 'Apendicitis aguda', 'Dolor en fosa ilíaca derecha, leucocitosis y signos de irritación peritoneal', 39, 1, 'Agendada'),
+(34, 34, 'Necrosis pulpar dental', 'Pieza dental 26 con dolor intenso y diagnóstico de pulpitis irreversible', 35, 1, 'Agendada'),
+(35, 35, 'Colelitiasis sintomática', 'Cólicos biliares recurrentes, ecografía confirma litiasis vesicular', 42, 1, 'Agendada'),
+(36, 36, 'Colecistitis aguda', 'Dolor en hipocondrio derecho con signos inflamatorios, Murphy positivo', 42, 1, 'Agendada'),
+(37, 37, 'Hernia inguinal bilateral', 'Paciente masculino con hernias inguinales sintomáticas bilaterales', 41, 1, 'Agendada'),
+(38, 38, 'Caries profunda molar', 'Pieza dental 36 con destrucción coronaria extensa, preservar diente', 35, 1, 'Agendada'),
+(39, 39, 'Colangitis aguda', 'Tríada de Charcot completa, requiere colecistectomía de urgencia', 43, 1, 'Agendada'),
+(40, 40, 'Trabajo de parto prolongado', 'Distocia de presentación, FCF no reactiva, cesárea de urgencia', 37, 1, 'Agendada'),
+(41, 41, 'Politraumatismo por accidente de tránsito', 'Paciente con trauma múltiple, fractura de fémur y contusión pulmonar', 54, 1, 'Agendada'),
+(42, 42, 'Infarto agudo de miocardio', 'Dolor torácico típico con elevación del ST, requiere UCI', 48, 1, 'Agendada'),
+(43, 43, 'Crisis hipertensiva', 'TA 220/120 mmHg con cefalea intensa y visión borrosa', 52, 1, 'Agendada'),
+(44, 44, 'Neumonía bilateral', 'Paciente adulto mayor con neumonía adquirida en comunidad severa', 46, 1, 'Agendada'),
+(45, 45, 'Shock séptico', 'Paciente con foco abdominal, hipotensión refractaria y falla multiorgánica', 48, 1, 'Agendada'),
+(46, 46, 'Amenaza de parto prematuro', 'Gestante de 32 semanas con contracciones uterinas y modificaciones cervicales', 49, 1, 'Agendada'),
+(47, 47, 'Preeclampsia severa', 'TA 170/110, proteinuria y cefalea, embarazo de 36 semanas', 49, 1, 'Agendada'),
+(48, 48, 'Edema agudo pulmonar', 'Disnea súbita, ortopnea y estertores crepitantes bilaterales', 48, 1, 'Agendada'),
+(49, 49, 'Quemaduras de segundo grado', 'Quemaduras en 25% de superficie corporal por escaldadura', 50, 1, 'Agendada'),
+(50, 50, 'Intoxicación por organofosforados', 'Paciente rural con síndrome colinérgico por exposición a pesticidas', 54, 1, 'Agendada');
+
+ALTER TABLE cita_medica
+ADD CONSTRAINT fk_orden
+FOREIGN KEY (id_orden) REFERENCES orden_medica(id_orden);
 
 -- DATOS PARA LA TABLA CONSULTA_MEDICA
 
