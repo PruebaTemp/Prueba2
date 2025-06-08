@@ -1,57 +1,45 @@
-DROP TABLE IF EXISTS control CASCADE;
-DROP TABLE IF EXISTS terapia CASCADE;
-DROP TABLE IF EXISTS perfil_alergias CASCADE;
-DROP TABLE IF EXISTS turno CASCADE; 
-DROP TABLE IF EXISTS relacion_personas CASCADE;
-DROP TABLE IF EXISTS intervencion_quirurgica CASCADE;
-DROP TABLE IF EXISTS tratamiento_medicamento CASCADE;
-DROP TABLE IF EXISTS sintoma CASCADE;
-DROP TABLE IF EXISTS examen CASCADE;
-DROP TABLE IF EXISTS ingreso_hospitalizacion CASCADE;
-DROP TABLE IF EXISTS alta_hospitalizacion CASCADE;
-DROP TABLE IF EXISTS tratamiento CASCADE;
-DROP TABLE IF EXISTS diagnostico CASCADE;
-DROP TABLE IF EXISTS consulta_medica CASCADE;
-DROP TABLE IF EXISTS servicio_medico CASCADE;
-DROP TABLE IF EXISTS cita_medica CASCADE;
-DROP TABLE IF EXISTS solicitud CASCADE;
-DROP TABLE IF EXISTS paciente CASCADE;
-DROP TABLE IF EXISTS asignacion_rol CASCADE;
-DROP TABLE IF EXISTS historia_clinica CASCADE;
-DROP TABLE IF EXISTS personal_medico CASCADE;
-DROP TABLE IF EXISTS administrador CASCADE;
-DROP TABLE IF EXISTS perfil_medico CASCADE;
-DROP TABLE IF EXISTS persona CASCADE;
-DROP TABLE IF EXISTS rol CASCADE;
-DROP TABLE IF EXISTS estado_historia_clinica CASCADE;
-DROP TABLE IF EXISTS alergia CASCADE;
-DROP TABLE IF EXISTS morbilidad CASCADE;
-DROP TABLE IF EXISTS medicamento CASCADE;
-DROP TABLE IF EXISTS especialidad CASCADE;
-DROP TABLE IF EXISTS tipo_servicio CASCADE;
-DROP TABLE IF EXISTS tipo_relacion CASCADE;
-DROP TABLE IF EXISTS subtipo_servicio CASCADE;
-DROP TABLE IF EXISTS unidad_tiempo CASCADE;
-DROP TABLE IF EXISTS cie10 CASCADE;
-DROP TABLE IF EXISTS orden_medica CASCADE;
-DROP TABLE IF EXISTS cita_atencion_orden CASCADE;
+DROP TABLE IF EXISTS tratamiento_medicamento;
+DROP TABLE IF EXISTS sintoma;
+DROP TABLE IF EXISTS terapia;
+DROP TABLE IF EXISTS alta_hospitalizacion;
+DROP TABLE IF EXISTS ingreso_hospitalizacion;
+DROP TABLE IF EXISTS control;
+DROP TABLE IF EXISTS intervencion_quirurgica;
+DROP TABLE IF EXISTS examen;
+DROP TABLE IF EXISTS tratamiento;
+DROP TABLE IF EXISTS diagnostico;
+DROP TABLE IF EXISTS consulta_medica;
+DROP TABLE IF EXISTS servicio_medico;
+DROP TABLE IF EXISTS cita_medica;
+DROP TABLE IF EXISTS solicitud;
+DROP TABLE IF EXISTS orden_medica;
+DROP TABLE IF EXISTS turno;
+DROP TABLE IF EXISTS asignacion_rol;
+DROP TABLE IF EXISTS paciente;
+DROP TABLE IF EXISTS historia_clinica;
+DROP TABLE IF EXISTS personal_medico;
+DROP TABLE IF EXISTS administrador;
+DROP TABLE IF EXISTS perfil_alergias;
+DROP TABLE IF EXISTS relacion_personas;
+DROP TABLE IF EXISTS perfil_medico;
+DROP TABLE IF EXISTS persona;
+DROP TABLE IF EXISTS morbilidad;
+DROP TABLE IF EXISTS subtipo_servicio;
+DROP TABLE IF EXISTS unidad_tiempo;
+DROP TABLE IF EXISTS rol;
+DROP TABLE IF EXISTS estado_historia_clinica;
+DROP TABLE IF EXISTS alergia;
+DROP TABLE IF EXISTS cie10;
+DROP TABLE IF EXISTS medicamento;
+DROP TABLE IF EXISTS especialidad;
+DROP TABLE IF EXISTS tipo_relacion;
+DROP TABLE IF EXISTS tipo_servicio;
 
-
-CREATE TABLE tipo_servicio (
+-- Tablas independientes (sin referencias a otras tablas)
+CREATE TABLE IF NOT EXISTS tipo_servicio (
     id_tipo_servicio SERIAL,
     nombre VARCHAR(30) NOT NULL,
     PRIMARY KEY (id_tipo_servicio)
-);
-
-
-CREATE TABLE IF NOT EXISTS subtipo_servicio (
-    id_subtipo_servicio SERIAL,
-    nombre VARCHAR(100) NOT NULL,
-    id_tipo_servicio INT NOT NULL,
-    PRIMARY KEY (id_subtipo_servicio),
-    CONSTRAINT id_tipo_servicio
-    FOREIGN KEY (id_tipo_servicio)
-    REFERENCES tipo_servicio(id_tipo_servicio)
 );
 
 CREATE TABLE IF NOT EXISTS tipo_relacion (
@@ -85,20 +73,6 @@ CREATE TABLE IF NOT EXISTS cie10 (
     PRIMARY KEY (id_cie10)
 );
 
-CREATE TABLE IF NOT EXISTS morbilidad (
-    id_morbilidad SERIAL,
-    id_cie10 INT NOT NULL,
-    descripcion VARCHAR(250),
-    fecha_identificacion DATE,
-    tipo VARCHAR(50) NOT NULL,
-    nivel_gravedad VARCHAR(50),
-    contagiosa BOOLEAN,
-    PRIMARY KEY (id_morbilidad),
-    CONSTRAINT id_cie10
-    FOREIGN KEY (id_cie10)
-    REFERENCES cie10(id_cie10)
-);
-
 CREATE TABLE IF NOT EXISTS alergia (
     id_alergia SERIAL,
     nombre_alergia VARCHAR(100) NOT NULL,
@@ -120,6 +94,37 @@ CREATE TABLE IF NOT EXISTS rol (
     PRIMARY KEY (id_rol)
 );
 
+CREATE TABLE IF NOT EXISTS unidad_tiempo (
+    id_unid_tiempo SERIAL,
+    nombre VARCHAR(20),
+    PRIMARY KEY (id_unid_tiempo)
+);
+
+-- Tablas que dependen de las anteriores
+CREATE TABLE IF NOT EXISTS subtipo_servicio (
+    id_subtipo_servicio SERIAL,
+    nombre VARCHAR(100) NOT NULL,
+    id_tipo_servicio INT NOT NULL,
+    PRIMARY KEY (id_subtipo_servicio),
+    CONSTRAINT id_tipo_servicio
+    FOREIGN KEY (id_tipo_servicio)
+    REFERENCES tipo_servicio(id_tipo_servicio)
+);
+
+CREATE TABLE IF NOT EXISTS morbilidad (
+    id_morbilidad SERIAL,
+    id_cie10 INT NOT NULL,
+    descripcion VARCHAR(250),
+    fecha_identificacion DATE,
+    tipo VARCHAR(50) NOT NULL,
+    nivel_gravedad VARCHAR(50),
+    contagiosa BOOLEAN,
+    PRIMARY KEY (id_morbilidad),
+    CONSTRAINT id_cie10
+    FOREIGN KEY (id_cie10)
+    REFERENCES cie10(id_cie10)
+);
+
 CREATE TABLE IF NOT EXISTS persona (
     id_persona SERIAL,
     prenombres VARCHAR(50) NOT NULL,
@@ -135,6 +140,17 @@ CREATE TABLE IF NOT EXISTS persona (
     PRIMARY KEY (id_persona)
 );
 
+CREATE TABLE IF NOT EXISTS perfil_medico (
+    id_perfil_medico SERIAL,
+    fecha_atencion TIMESTAMP NOT NULL,
+    grupo_sanguineo VARCHAR(3),
+    ambiente_residencia VARCHAR(50), 
+    orientacion_sexual VARCHAR(30),
+    vida_sexual_activa BOOLEAN,
+    PRIMARY KEY (id_perfil_medico)
+);
+
+-- Tablas que dependen de las anteriores
 CREATE TABLE IF NOT EXISTS relacion_personas (
     id_persona_1 INT NOT NULL,
     id_persona_2 INT NOT NULL,
@@ -152,16 +168,6 @@ CREATE TABLE IF NOT EXISTS relacion_personas (
     FOREIGN KEY (id_tipo_relacion)
     REFERENCES tipo_relacion(id_tipo_relacion),
     PRIMARY KEY (id_persona_1, id_persona_2, id_tipo_relacion)
-);
-
-CREATE TABLE IF NOT EXISTS perfil_medico (
-    id_perfil_medico SERIAL,
-    fecha_atencion TIMESTAMP NOT NULL,
-    grupo_sanguineo VARCHAR(3),
-    ambiente_residencia VARCHAR(50), 
-    orientacion_sexual VARCHAR(30),
-    vida_sexual_activa BOOLEAN,
-    PRIMARY KEY (id_perfil_medico)
 );
 
 CREATE TABLE IF NOT EXISTS perfil_alergias (
@@ -203,18 +209,6 @@ CREATE TABLE IF NOT EXISTS personal_medico (
     CONSTRAINT id_especialidad
     FOREIGN KEY (id_especialidad) 
     REFERENCES especialidad(id_especialidad)
-);
-
-CREATE TABLE IF NOT EXISTS turno (
-    id_turno SERIAL,
-    id_personal_medico INT NOT NULL,
-    dia_semana SMALLINT NOT NULL,
-    hora_inicio TIME NOT NULL,
-    hora_fin TIME NOT NULL,
-    PRIMARY KEY (id_turno),
-    CONSTRAINT id_personal_medico 
-    FOREIGN KEY (id_personal_medico) 
-    REFERENCES personal_medico(id_personal_medico)
 );
 
 CREATE TABLE IF NOT EXISTS historia_clinica (
@@ -263,6 +257,35 @@ CREATE TABLE IF NOT EXISTS asignacion_rol (
     REFERENCES rol(id_rol)
 );
 
+CREATE TABLE IF NOT EXISTS turno (
+    id_turno SERIAL,
+    id_personal_medico INT NOT NULL,
+    dia_semana SMALLINT NOT NULL,
+    hora_inicio TIME NOT NULL,
+    hora_fin TIME NOT NULL,
+    PRIMARY KEY (id_turno),
+    CONSTRAINT id_personal_medico 
+    FOREIGN KEY (id_personal_medico) 
+    REFERENCES personal_medico(id_personal_medico)
+);
+
+CREATE TABLE IF NOT EXISTS orden_medica (
+    id_orden SERIAL,
+    motivo TEXT,
+    observaciones TEXT,
+    id_tipo_servicio INT NOT NULL,
+    id_subtipo_servicio INT NOT NULL,
+    cantidad INT NOT NULL DEFAULT 1 CHECK (cantidad > 0),
+    estado TEXT NOT NULL DEFAULT 'Pendiente',
+    PRIMARY KEY (id_orden),
+    CONSTRAINT id_tipo_servicio
+    FOREIGN KEY (id_tipo_servicio)
+    REFERENCES tipo_servicio(id_tipo_servicio),
+    CONSTRAINT id_subtipo_servicio
+    FOREIGN KEY (id_subtipo_servicio)
+    REFERENCES subtipo_servicio(id_subtipo_servicio)
+);
+
 CREATE TABLE IF NOT EXISTS solicitud (
     id_solicitud SERIAL,
     id_persona INT NOT NULL,
@@ -282,18 +305,23 @@ CREATE TABLE IF NOT EXISTS solicitud (
 
 CREATE TABLE IF NOT EXISTS cita_medica (
     id_cita_medica SERIAL,
+    id_orden INT,
     id_paciente INT NOT NULL,
     id_personal_medico INT NOT NULL,
     estado VARCHAR(50) NOT NULL,
     actividad VARCHAR(100),
     fecha_hora_programada TIMESTAMP NOT NULL,
+    fecha_hora_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id_cita_medica),
     CONSTRAINT id_paciente
     FOREIGN KEY (id_paciente)
     REFERENCES paciente(id_paciente),
     CONSTRAINT id_personal_medico
     FOREIGN KEY (id_personal_medico)
-    REFERENCES personal_medico(id_personal_medico)
+    REFERENCES personal_medico(id_personal_medico),
+    CONSTRAINT id_orden
+    FOREIGN KEY (id_orden)
+    REFERENCES orden_medica(id_orden)
 );
 
 CREATE TABLE IF NOT EXISTS servicio_medico (
@@ -308,6 +336,7 @@ CREATE TABLE IF NOT EXISTS servicio_medico (
     REFERENCES cita_medica(id_cita_medica)
 );
 
+-- Tablas que dependen de servicio_medico
 CREATE TABLE IF NOT EXISTS consulta_medica (
     id_consulta_medica SERIAL,
     id_servicio_medico INT NOT NULL,
@@ -327,35 +356,6 @@ CREATE TABLE IF NOT EXISTS consulta_medica (
     REFERENCES subtipo_servicio(id_subtipo_servicio)
 );
 
-CREATE TABLE orden_medica (
-    id_orden SERIAL,
-    motivo TEXT,
-    observaciones TEXT,
-    id_tipo_servicio INT NOT NULL,
-    id_subtipo_servicio INT NOT NULL,
-    cantidad INT NOT NULL DEFAULT 1 CHECK (cantidad > 0),
-    PRIMARY KEY (id_orden),
-    CONSTRAINT id_tipo_servicio
-    FOREIGN KEY (id_tipo_servicio)
-    REFERENCES tipo_servicio(id_tipo_servicio),
-    CONSTRAINT id_subtipo_servicio
-    FOREIGN KEY (id_subtipo_servicio)
-    REFERENCES subtipo_servicio(id_subtipo_servicio)
-    
-);
-
-CREATE TABLE cita_atencion_orden (
-    id_orden INT NOT NULL,
-    id_cita_medica INT NOT NULL,
-    PRIMARY KEY (id_orden, id_cita_medica),
-    CONSTRAINT id_orden
-    FOREIGN KEY (id_orden)
-    REFERENCES orden_medica(id_orden),
-    CONSTRAINT id_cita_medica 
-    FOREIGN KEY (id_cita_medica)
-    REFERENCES cita_medica(id_cita_medica)
-);
-
 CREATE TABLE IF NOT EXISTS diagnostico (
     id_diagnostico SERIAL,
     id_morbilidad INT NOT NULL,
@@ -368,14 +368,6 @@ CREATE TABLE IF NOT EXISTS diagnostico (
     CONSTRAINT id_servicio_medico
     FOREIGN KEY (id_servicio_medico) 
     REFERENCES servicio_medico(id_servicio_medico)
-);
-
-
-
-CREATE TABLE IF NOT EXISTS unidad_tiempo (
-    id_unid_tiempo SERIAL,
-    nombre VARCHAR(20),
-    PRIMARY KEY (id_unid_tiempo)
 );
 
 CREATE TABLE IF NOT EXISTS tratamiento (
@@ -407,36 +399,6 @@ CREATE TABLE IF NOT EXISTS examen (
     CONSTRAINT id_servicio_medico
     FOREIGN KEY (id_servicio_medico) 
     REFERENCES servicio_medico(id_servicio_medico)
-);
-
-CREATE TABLE IF NOT EXISTS sintoma (
-    id_sintoma SERIAL,
-    id_diagnostico INT NOT NULL,
-    nombre_sintoma VARCHAR(100) NOT NULL,
-    fecha_primera_manifestacion DATE NOT NULL,
-    descripcion VARCHAR(200),
-    severidad INT NOT NULL,
-    estado_actual VARCHAR(50) NOT NULL,
-    PRIMARY KEY (id_sintoma),
-    CONSTRAINT id_diagnostico
-    FOREIGN KEY (id_diagnostico)
-    REFERENCES diagnostico(id_diagnostico)
-);
-
-CREATE TABLE IF NOT EXISTS tratamiento_medicamento (
-    id_tratamiento_medicamento SERIAL,
-    id_tratamiento INT NOT NULL,
-    id_medicamento INT NOT NULL,
-    motivo VARCHAR(100),
-    cantidad_dosis INT NOT NULL,
-    frecuencia VARCHAR(100) NOT NULL,
-    PRIMARY KEY (id_tratamiento_medicamento),
-    CONSTRAINT id_tratamiento
-    FOREIGN KEY (id_tratamiento)
-    REFERENCES tratamiento(id_tratamiento),
-    CONSTRAINT id_medicamento
-    FOREIGN KEY (id_medicamento) 
-    REFERENCES medicamento(id_medicamento)
 );
 
 CREATE TABLE IF NOT EXISTS intervencion_quirurgica (
@@ -500,6 +462,37 @@ CREATE TABLE IF NOT EXISTS terapia (
     CONSTRAINT id_servicio_medico
     FOREIGN KEY (id_servicio_medico)
     REFERENCES servicio_medico(id_servicio_medico)
+);
+
+-- Tablas que dependen de otras tablas ya creadas
+CREATE TABLE IF NOT EXISTS sintoma (
+    id_sintoma SERIAL,
+    id_diagnostico INT NOT NULL,
+    nombre_sintoma VARCHAR(100) NOT NULL,
+    fecha_primera_manifestacion DATE NOT NULL,
+    descripcion VARCHAR(200),
+    severidad INT NOT NULL,
+    estado_actual VARCHAR(50) NOT NULL,
+    PRIMARY KEY (id_sintoma),
+    CONSTRAINT id_diagnostico
+    FOREIGN KEY (id_diagnostico)
+    REFERENCES diagnostico(id_diagnostico)
+);
+
+CREATE TABLE IF NOT EXISTS tratamiento_medicamento (
+    id_tratamiento_medicamento SERIAL,
+    id_tratamiento INT NOT NULL,
+    id_medicamento INT NOT NULL,
+    motivo VARCHAR(100),
+    cantidad_dosis INT NOT NULL,
+    frecuencia VARCHAR(100) NOT NULL,
+    PRIMARY KEY (id_tratamiento_medicamento),
+    CONSTRAINT id_tratamiento
+    FOREIGN KEY (id_tratamiento)
+    REFERENCES tratamiento(id_tratamiento),
+    CONSTRAINT id_medicamento
+    FOREIGN KEY (id_medicamento) 
+    REFERENCES medicamento(id_medicamento)
 );
 
 /* --------------------------------------------------------
@@ -1405,213 +1398,156 @@ INSERT INTO morbilidad (
 (49, 46, 'Consejería sexual en adultos mayores', '2024-04-26', 'Educativa', 'N/A', FALSE),
 (50, 33, 'Fiebre sin foco aparente', '2024-05-03', 'Aguda', 'Moderada', TRUE);
 
+-- DATOS PARA LA TABLA ORDEN_MEDICA
+
+INSERT INTO orden_medica (id_orden, motivo, observaciones, id_tipo_servicio, id_subtipo_servicio, cantidad, estado) VALUES
+-- CONSULTAS MÉDICAS
+(1, 'Control médico general de rutina', 'Paciente refiere buen estado general, requiere evaluación preventiva anual', 1, 1, 1, 'Agendada'),
+(2, 'Erupción cutánea en extremidades superiores', 'Lesiones pruriginosas de 5 días de evolución, posible dermatitis de contacto', 1, 5, 1, 'Agendada'),
+(3, 'Seguimiento de tratamiento dermatológico', 'Control post-tratamiento para dermatitis atópica, evaluar respuesta terapéutica', 1, 5, 1, 'Agendada'),
+(4, 'Control de diabetes mellitus tipo 2', 'Paciente diabético en tratamiento, requiere ajuste de medicación y seguimiento', 1, 12, 1, 'Agendada'),
+(5, 'Seguimiento de hipertensión arterial', 'Control de presión arterial y adherencia al tratamiento antihipertensivo', 1, 12, 1, 'Agendada'),
+(6, 'Síntomas respiratorios leves', 'Tos seca y congestión nasal de 3 días, descartar infección respiratoria', 1, 9, 1, 'Agendada'),
+(7, 'Control ginecológico de rutina', 'Paciente de 35 años para evaluación ginecológica anual y citología', 1, 3, 1, 'Agendada'),
+(8, 'Consulta por cefalea recurrente', 'Episodios de cefalea tensional, evaluar factores desencadenantes', 1, 9, 1, 'Agendada'),
+(9, 'Dolor precordial atípico', 'Paciente refiere molestias torácicas intermitentes, descartar origen cardíaco', 1, 4, 1, 'Agendada'),
+(10, 'Evaluación psicológica infantil', 'Niño de 8 años con dificultades de atención y comportamiento escolar', 1, 8, 1, 'Agendada'),
+(11, 'Sospecha de COVID-19', 'Paciente con síntomas compatibles: fiebre, tos y anosmia de 2 días', 2, 17, 1, 'Agendada'),
+(12, 'Evaluación de masa abdominal', 'Paciente refiere dolor abdominal y masa palpable, requiere TAC para diagnóstico', 2, 21, 1, 'Agendada'),
+(13, 'Chequeo médico ocupacional anual', 'Trabajador de oficina para evaluación médica laboral de rutina', 2, 25, 1, 'Agendada'),
+(14, 'Control post-COVID-19', 'Paciente recuperado de COVID-19, control serológico a los 3 meses', 2, 17, 1, 'Agendada'),
+(15, 'Examen médico pre-empleo', 'Candidato a puesto administrativo requiere evaluación preocupacional', 2, 24, 1, 'Agendada'),
+(16, 'Seguimiento de tratamiento oncológico', 'Control imagenológico post-quimioterapia para evaluar respuesta', 2, 21, 1, 'Agendada'),
+(17, 'Infección urinaria recurrente', 'Paciente femenina con disuria y polaquiuria, tercer episodio en 6 meses', 2, 16, 1, 'Agendada'),
+(18, 'Trauma en extremidad superior', 'Caída con dolor e impotencia funcional en muñeca derecha', 2, 18, 1, 'Agendada'),
+(19, 'Evaluación ergonómica laboral', 'Trabajador con dolor lumbar crónico, evaluar puesto de trabajo', 2, 28, 1, 'Agendada'),
+(20, 'Control de función renal', 'Paciente hipertenso en seguimiento, control de creatinina y proteinuria', 2, 16, 1, 'Agendada'),
+(21, 'Rehabilitación post-ACV', 'Paciente con secuelas neurológicas de ACV, requiere neurorehabilitación integral', 3, 33, 1, 'Agendada'),
+(22, 'Trastorno del lenguaje infantil', 'Niño de 4 años con retraso en desarrollo del lenguaje expresivo', 3, 32, 1, 'Agendada'),
+(23, 'Lumbalgia crónica', 'Dolor lumbar de 6 meses de evolución, limitación funcional moderada', 3, 29, 1, 'Agendada'),
+(24, 'Rehabilitación post-fractura', 'Fractura de húmero consolidada, recuperar rango de movimiento', 3, 33, 1, 'Agendada'),
+(25, 'EPOC en tratamiento', 'Paciente con enfermedad pulmonar obstructiva crónica, disnea grado II', 3, 30, 1, 'Agendada'),
+(26, 'Tendinitis de hombro', 'Dolor y limitación funcional en hombro derecho, mejorar movilidad', 3, 29, 1, 'Agendada'),
+(27, 'Asma bronquial en niño', 'Paciente pediátrico con crisis asmáticas frecuentes, educación respiratoria', 3, 30, 1, 'Agendada'),
+(28, 'Secuelas de traumatismo craneal', 'Déficit cognitivo post-TEC, rehabilitación neuropsicológica', 3, 33, 1, 'Agendada'),
+(29, 'Fibrosis pulmonar', 'Paciente con diagnóstico reciente de fibrosis pulmonar idiopática', 3, 30, 1, 'Agendada'),
+(30, 'Artritis reumatoide', 'Rigidez matutina y dolor articular, mantener funcionalidad', 3, 29, 1, 'Agendada'),
+(31, 'Embarazo de término gemelar', 'Gestante de 38 semanas con presentación podálica de segundo gemelar', 4, 37, 1, 'Agendada'),
+(32, 'Maloclusión dental severa', 'Paciente de 16 años con apiñamiento dental y mordida cruzada', 4, 36, 1, 'Agendada'),
+(33, 'Apendicitis aguda', 'Dolor en fosa ilíaca derecha, leucocitosis y signos de irritación peritoneal', 4, 39, 1, 'Agendada'),
+(34, 'Necrosis pulpar dental', 'Pieza dental 26 con dolor intenso y diagnóstico de pulpitis irreversible', 4, 35, 1, 'Agendada'),
+(35, 'Colelitiasis sintomática', 'Cólicos biliares recurrentes, ecografía confirma litiasis vesicular', 4, 42, 1, 'Agendada'),
+(36, 'Colecistitis aguda', 'Dolor en hipocondrio derecho con signos inflamatorios, Murphy positivo', 4, 42, 1, 'Agendada'),
+(37, 'Hernia inguinal bilateral', 'Paciente masculino con hernias inguinales sintomáticas bilaterales', 4, 41, 1, 'Agendada'),
+(38, 'Caries profunda molar', 'Pieza dental 36 con destrucción coronaria extensa, preservar diente', 4, 35, 1, 'Agendada'),
+(39, 'Colangitis aguda', 'Tríada de Charcot completa, requiere colecistectomía de urgencia', 4, 43, 1, 'Agendada'),
+(40, 'Trabajo de parto prolongado', 'Distocia de presentación, FCF no reactiva, cesárea de urgencia', 4, 37, 1, 'Agendada'),
+(41, 'Politraumatismo por accidente de tránsito', 'Paciente con trauma múltiple, fractura de fémur y contusión pulmonar', 5, 54, 1, 'Agendada'),
+(42, 'Infarto agudo de miocardio', 'Dolor torácico típico con elevación del ST, requiere UCI', 5, 48, 1, 'Agendada'),
+(43, 'Crisis hipertensiva', 'TA 220/120 mmHg con cefalea intensa y visión borrosa', 5, 52, 1, 'Agendada'),
+(44, 'Neumonía bilateral', 'Paciente adulto mayor con neumonía adquirida en comunidad severa', 5, 46, 1, 'Agendada'),
+(45, 'Shock séptico', 'Paciente con foco abdominal, hipotensión refractaria y falla multiorgánica', 5, 48, 1, 'Agendada'),
+(46, 'Amenaza de parto prematuro', 'Gestante de 32 semanas con contracciones uterinas y modificaciones cervicales', 5, 49, 1, 'Agendada'),
+(47, 'Preeclampsia severa', 'TA 170/110, proteinuria y cefalea, embarazo de 36 semanas', 5, 49, 1, 'Agendada'),
+(48, 'Edema agudo pulmonar', 'Disnea súbita, ortopnea y estertores crepitantes bilaterales', 5, 48, 1, 'Agendada'),
+(49, 'Quemaduras de segundo grado', 'Quemaduras en 25% de superficie corporal por escaldadura', 5, 50, 1, 'Agendada'),
+(50, 'Intoxicación por organofosforados', 'Paciente rural con síndrome colinérgico por exposición a pesticidas', 5, 54, 1, 'Agendada');
 
 -- DATOS PARA LA TABLA CITA_MEDICA
 
 INSERT INTO cita_medica (
-    id_cita_medica, id_paciente, id_personal_medico, estado, actividad, fecha_hora_programada
+    id_cita_medica, id_paciente, id_personal_medico, id_orden, estado, actividad, fecha_hora_programada
 ) VALUES
-(1, 12, 5, 'Completado', 'Consulta general', '2025-05-01 09:00:00'),
-(2, 7, 14, 'Pendiente', 'Control de presión arterial', '2025-05-01 10:30:00'),
-(3, 33, 2, 'Cancelado', 'Revisión odontológica', '2025-05-01 11:00:00'),
-(4, 18, 22, 'Completado', 'Examen de laboratorio', '2025-05-01 12:15:00'),
-(5, 49, 8, 'Pendiente', 'Consulta psicológica', '2025-05-02 08:45:00'),
-(6, 6, 17, 'Completado', 'Vacunación', '2025-05-02 09:30:00'),
-(7, 25, 4, 'Pendiente', 'Evaluación preoperatoria', '2025-05-02 10:00:00'),
-(8, 15, 30, 'Completado', 'Consulta pediátrica', '2025-05-02 11:00:00'),
-(9, 44, 9, 'Completado', 'Electrocardiograma', '2025-05-02 13:30:00'),
-(10, 9, 1, 'Cancelado', 'Control de diabetes', '2025-05-03 08:00:00'),
-(11, 20, 11, 'Completado', 'Consulta general', '2025-05-03 09:00:00'),
-(12, 3, 3, 'Pendiente', 'Curación de herida', '2025-05-03 10:15:00'),
-(13, 47, 6, 'Completado', 'Consulta nutricional', '2025-05-03 11:30:00'),
-(14, 30, 25, 'Completado', 'Terapia respiratoria', '2025-05-03 12:45:00'),
-(15, 39, 12, 'Pendiente', 'Examen de sangre', '2025-05-03 13:15:00'),
-(16, 5, 10, 'Cancelado', 'Consulta ginecológica', '2025-05-04 09:00:00'),
-(17, 14, 18, 'Pendiente', 'Consulta urológica', '2025-05-04 10:00:00'),
-(18, 26, 21, 'Completado', 'Consulta dermatológica', '2025-05-04 11:30:00'),
-(19, 2, 7, 'Pendiente', 'Evaluación de cirugía menor', '2025-05-04 13:00:00'),
-(20, 41, 19, 'Completado', 'Consulta geriátrica', '2025-05-04 14:00:00'),
-(21, 50, 27, 'Pendiente', 'Consulta traumatológica', '2025-05-05 08:00:00'),
-(22, 19, 13, 'Cancelado', 'Vacunación', '2025-05-05 09:30:00'),
-(23, 1, 24, 'Completado', 'Consulta psiquiátrica', '2025-05-05 10:00:00'),
-(24, 22, 20, 'Completado', 'Toma de signos vitales', '2025-05-05 11:00:00'),
-(25, 36, 29, 'Pendiente', 'Evaluación neurológica', '2025-05-05 12:30:00'),
-(26, 4, 5, 'Completado', 'Chequeo anual', '2025-05-05 13:00:00'),
-(27, 32, 6, 'Pendiente', 'Consulta general', '2025-05-06 09:00:00'),
-(28, 13, 1, 'Cancelado', 'Consulta ginecológica', '2025-05-06 10:00:00'),
-(29, 46, 14, 'Completado', 'Consulta psicológica', '2025-05-06 11:30:00'),
-(30, 35, 3, 'Completado', 'Revisión dental', '2025-05-06 12:00:00'),
-(31, 21, 2, 'Pendiente', 'Curación postoperatoria', '2025-05-06 13:15:00'),
-(32, 10, 8, 'Completado', 'Electrocardiograma', '2025-05-07 08:45:00'),
-(33, 17, 23, 'Completado', 'Control prenatal', '2025-05-07 10:00:00'),
-(34, 45, 28, 'Pendiente', 'Evaluación nutricional', '2025-05-07 11:15:00'),
-(35, 23, 15, 'Cancelado', 'Control posparto', '2025-05-07 12:00:00'),
-(36, 37, 16, 'Completado', 'Chequeo pediátrico', '2025-05-07 13:30:00'),
-(37, 8, 26, 'Pendiente', 'Consulta traumatológica', '2025-05-08 09:00:00'),
-(38, 11, 30, 'Completado', 'Examen auditivo', '2025-05-08 10:15:00'),
-(39, 43, 4, 'Pendiente', 'Consulta oftalmológica', '2025-05-08 11:00:00'),
-(40, 28, 22, 'Completado', 'Control de medicación', '2025-05-08 13:00:00'),
-(41, 24, 7, 'Cancelado', 'Consulta geriátrica', '2025-05-08 14:15:00'),
-(42, 38, 17, 'Completado', 'Evaluación preoperatoria', '2025-05-09 08:00:00'),
-(43, 40, 19, 'Pendiente', 'Consulta odontológica', '2025-05-09 09:00:00'),
-(44, 16, 12, 'Completado', 'Consulta general', '2025-05-09 10:00:00'),
-(45, 29, 9, 'Completado', 'Vacunación', '2025-05-09 11:00:00'),
-(46, 31, 6, 'Pendiente', 'Consulta nutricional', '2025-05-09 12:30:00'),
-(47, 48, 11, 'Completado', 'Control de presión arterial', '2025-05-10 08:30:00'),
-(48, 34, 25, 'Pendiente', 'Consulta ginecológica', '2025-05-10 09:30:00'),
-(49, 42, 13, 'Cancelado', 'Chequeo general', '2025-05-10 10:30:00'),
-(50, 27, 2, 'Completado', 'Electrocardiograma', '2025-05-10 11:45:00'),
-(51, 9, 1, 'Pendiente', 'Consulta general', '2025-05-10 12:00:00'),
-(52, 12, 14, 'Completado', 'Control de peso', '2025-05-11 09:00:00'),
-(53, 3, 3, 'Completado', 'Consulta nutricional', '2025-05-11 10:00:00'),
-(54, 47, 20, 'Pendiente', 'Curación de herida', '2025-05-11 11:00:00'),
-(55, 6, 21, 'Cancelado', 'Evaluación neurológica', '2025-05-11 12:00:00'),
-(56, 44, 24, 'Completado', 'Consulta psicológica', '2025-05-11 13:00:00'),
-(57, 15, 5, 'Pendiente', 'Chequeo de rutina', '2025-05-11 14:00:00'),
-(58, 50, 28, 'Completado', 'Examen físico', '2025-05-12 08:30:00'),
-(59, 19, 18, 'Completado', 'Consulta pediátrica', '2025-05-12 09:30:00'),
-(60, 36, 10, 'Pendiente', 'Revisión de tratamiento', '2025-05-12 10:30:00'),
-(61, 33, 27, 'Cancelado', 'Consulta de seguimiento', '2025-05-12 11:45:00'),
-(62, 18, 8, 'Completado', 'Control médico', '2025-05-12 13:00:00'),
-(63, 25, 16, 'Pendiente', 'Evaluación médica', '2025-05-12 14:00:00'),
-(64, 7, 6, 'Completado', 'Consulta general', '2025-05-13 09:00:00'),
-(65, 22, 7, 'Cancelado', 'Control de diabetes', '2025-05-13 10:00:00'),
-(66, 30, 1, 'Pendiente', 'Examen de sangre', '2025-05-13 11:00:00'),
-(67, 39, 22, 'Completado', 'Consulta urológica', '2025-05-13 12:00:00'),
-(68, 14, 19, 'Pendiente', 'Control de peso', '2025-05-13 13:00:00'),
-(69, 35, 15, 'Completado', 'Consulta general', '2025-05-13 14:00:00'),
-(70, 4, 26, 'Pendiente', 'Consulta dermatológica', '2025-05-14 09:00:00'),
-(71, 10, 30, 'Completado', 'Control de presión arterial', '2025-05-14 10:00:00'),
-(72, 23, 4, 'Pendiente', 'Consulta psicológica', '2025-05-14 11:00:00'),
-(73, 28, 17, 'Cancelado', 'Evaluación general', '2025-05-14 12:00:00'),
-(74, 1, 23, 'Completado', 'Consulta médica', '2025-05-14 13:00:00'),
-(75, 5, 13, 'Pendiente', 'Chequeo anual', '2025-05-14 14:00:00'),
-(76, 41, 11, 'Completado', 'Consulta cardiológica', '2025-05-15 08:00:00'),
-(77, 26, 9, 'Pendiente', 'Examen oftalmológico', '2025-05-15 09:00:00'),
-(78, 37, 12, 'Completado', 'Consulta endocrinológica', '2025-05-15 10:00:00'),
-(79, 13, 29, 'Cancelado', 'Terapia física', '2025-05-15 11:00:00'),
-(80, 49, 18, 'Completado', 'Control de embarazo', '2025-05-15 12:00:00'),
-(81, 20, 2, 'Pendiente', 'Consulta reumatológica', '2025-05-15 13:00:00'),
-(82, 32, 16, 'Completado', 'Examen neurológico', '2025-05-15 14:00:00'),
-(83, 8, 24, 'Pendiente', 'Consulta oncológica', '2025-05-16 08:30:00'),
-(84, 46, 5, 'Completado', 'Control postoperatorio', '2025-05-16 09:30:00'),
-(85, 17, 27, 'Cancelado', 'Consulta neumológica', '2025-05-16 10:30:00'),
-(86, 45, 20, 'Completado', 'Evaluación geriátrica', '2025-05-16 11:30:00'),
-(87, 21, 8, 'Pendiente', 'Consulta gastroenterológica', '2025-05-16 12:30:00'),
-(88, 38, 14, 'Completado', 'Control de hipertensión', '2025-05-16 13:30:00'),
-(89, 11, 25, 'Pendiente', 'Consulta hematológica', '2025-05-16 14:30:00'),
-(90, 43, 1, 'Completado', 'Chequeo preventivo', '2025-05-16 15:00:00');
-
-
--- DATOS PARA LA TABLA ORDEN_MEDICA
-
-INSERT INTO orden_medica (id_orden, motivo, observaciones, id_tipo_servicio, id_subtipo_servicio, cantidad) VALUES
--- CONSULTAS MÉDICAS
-(1, 'Control médico general de rutina', 'Paciente refiere buen estado general, requiere evaluación preventiva anual', 1, 1, 1),
-(2, 'Erupción cutánea en extremidades superiores', 'Lesiones pruriginosas de 5 días de evolución, posible dermatitis de contacto', 1, 5, 1),
-(3, 'Seguimiento de tratamiento dermatológico', 'Control post-tratamiento para dermatitis atópica, evaluar respuesta terapéutica', 1, 5, 1),
-(4, 'Control de diabetes mellitus tipo 2', 'Paciente diabético en tratamiento, requiere ajuste de medicación y seguimiento', 1, 12, 1),
-(5, 'Seguimiento de hipertensión arterial', 'Control de presión arterial y adherencia al tratamiento antihipertensivo', 1, 12, 1),
-(6, 'Síntomas respiratorios leves', 'Tos seca y congestión nasal de 3 días, descartar infección respiratoria', 1, 9, 1),
-(7, 'Control ginecológico de rutina', 'Paciente de 35 años para evaluación ginecológica anual y citología', 1, 3, 1),
-(8, 'Consulta por cefalea recurrente', 'Episodios de cefalea tensional, evaluar factores desencadenantes', 1, 9, 1),
-(9, 'Dolor precordial atípico', 'Paciente refiere molestias torácicas intermitentes, descartar origen cardíaco', 1, 4, 1),
-(10, 'Evaluación psicológica infantil', 'Niño de 8 años con dificultades de atención y comportamiento escolar', 1, 8, 1),
-(11, 'Sospecha de COVID-19', 'Paciente con síntomas compatibles: fiebre, tos y anosmia de 2 días', 2, 17, 1),
-(12, 'Evaluación de masa abdominal', 'Paciente refiere dolor abdominal y masa palpable, requiere TAC para diagnóstico', 2, 21, 1),
-(13, 'Chequeo médico ocupacional anual', 'Trabajador de oficina para evaluación médica laboral de rutina', 2, 25, 1),
-(14, 'Control post-COVID-19', 'Paciente recuperado de COVID-19, control serológico a los 3 meses', 2, 17, 1),
-(15, 'Examen médico pre-empleo', 'Candidato a puesto administrativo requiere evaluación preocupacional', 2, 24, 1),
-(16, 'Seguimiento de tratamiento oncológico', 'Control imagenológico post-quimioterapia para evaluar respuesta', 2, 21, 1),
-(17, 'Infección urinaria recurrente', 'Paciente femenina con disuria y polaquiuria, tercer episodio en 6 meses', 2, 16, 1),
-(18, 'Trauma en extremidad superior', 'Caída con dolor e impotencia funcional en muñeca derecha', 2, 18, 1),
-(19, 'Evaluación ergonómica laboral', 'Trabajador con dolor lumbar crónico, evaluar puesto de trabajo', 2, 28, 1),
-(20, 'Control de función renal', 'Paciente hipertenso en seguimiento, control de creatinina y proteinuria', 2, 16, 1),
-(21, 'Rehabilitación post-ACV', 'Paciente con secuelas neurológicas de ACV, requiere neurorehabilitación integral', 3, 33, 1),
-(22, 'Trastorno del lenguaje infantil', 'Niño de 4 años con retraso en desarrollo del lenguaje expresivo', 3, 32, 1),
-(23, 'Lumbalgia crónica', 'Dolor lumbar de 6 meses de evolución, limitación funcional moderada', 3, 29, 1),
-(24, 'Rehabilitación post-fractura', 'Fractura de húmero consolidada, recuperar rango de movimiento', 3, 33, 1),
-(25, 'EPOC en tratamiento', 'Paciente con enfermedad pulmonar obstructiva crónica, disnea grado II', 3, 30, 1),
-(26, 'Tendinitis de hombro', 'Dolor y limitación funcional en hombro derecho, mejorar movilidad', 3, 29, 1),
-(27, 'Asma bronquial en niño', 'Paciente pediátrico con crisis asmáticas frecuentes, educación respiratoria', 3, 30, 1),
-(28, 'Secuelas de traumatismo craneal', 'Déficit cognitivo post-TEC, rehabilitación neuropsicológica', 3, 33, 1),
-(29, 'Fibrosis pulmonar', 'Paciente con diagnóstico reciente de fibrosis pulmonar idiopática', 3, 30, 1),
-(30, 'Artritis reumatoide', 'Rigidez matutina y dolor articular, mantener funcionalidad', 3, 29, 1),
-(31, 'Embarazo de término gemelar', 'Gestante de 38 semanas con presentación podálica de segundo gemelar', 4, 37, 1),
-(32, 'Maloclusión dental severa', 'Paciente de 16 años con apiñamiento dental y mordida cruzada', 4, 36, 1),
-(33, 'Apendicitis aguda', 'Dolor en fosa ilíaca derecha, leucocitosis y signos de irritación peritoneal', 4, 39, 1),
-(34, 'Necrosis pulpar dental', 'Pieza dental 26 con dolor intenso y diagnóstico de pulpitis irreversible', 4, 35, 1),
-(35, 'Colelitiasis sintomática', 'Cólicos biliares recurrentes, ecografía confirma litiasis vesicular', 4, 42, 1),
-(36, 'Colecistitis aguda', 'Dolor en hipocondrio derecho con signos inflamatorios, Murphy positivo', 4, 42, 1),
-(37, 'Hernia inguinal bilateral', 'Paciente masculino con hernias inguinales sintomáticas bilaterales', 4, 41, 1),
-(38, 'Caries profunda molar', 'Pieza dental 36 con destrucción coronaria extensa, preservar diente', 4, 35, 1),
-(39, 'Colangitis aguda', 'Tríada de Charcot completa, requiere colecistectomía de urgencia', 4, 43, 1),
-(40, 'Trabajo de parto prolongado', 'Distocia de presentación, FCF no reactiva, cesárea de urgencia', 4, 37, 1),
-(41, 'Politraumatismo por accidente de tránsito', 'Paciente con trauma múltiple, fractura de fémur y contusión pulmonar', 5, 54, 1),
-(42, 'Infarto agudo de miocardio', 'Dolor torácico típico con elevación del ST, requiere UCI', 5, 48, 1),
-(43, 'Crisis hipertensiva', 'TA 220/120 mmHg con cefalea intensa y visión borrosa', 5, 52, 1),
-(44, 'Neumonía bilateral', 'Paciente adulto mayor con neumonía adquirida en comunidad severa', 5, 46, 1),
-(45, 'Shock séptico', 'Paciente con foco abdominal, hipotensión refractaria y falla multiorgánica', 5, 48, 1),
-(46, 'Amenaza de parto prematuro', 'Gestante de 32 semanas con contracciones uterinas y modificaciones cervicales', 5, 49, 1),
-(47, 'Preeclampsia severa', 'TA 170/110, proteinuria y cefalea, embarazo de 36 semanas', 5, 49, 1),
-(48, 'Edema agudo pulmonar', 'Disnea súbita, ortopnea y estertores crepitantes bilaterales', 5, 48, 1),
-(49, 'Quemaduras de segundo grado', 'Quemaduras en 25% de superficie corporal por escaldadura', 5, 50, 1),
-(50, 'Intoxicación por organofosforados', 'Paciente rural con síndrome colinérgico por exposición a pesticidas', 5, 54, 1);
-
-
--- DATOS PARA LA TABLA CITA_ATENCION_ORDEN
-INSERT INTO cita_atencion_orden (id_orden, id_cita_medica) VALUES
-(1, 1),
-(2, 2),
-(3, 3),
-(4, 4),
-(5, 5),
-(6, 6),
-(7, 7),
-(8, 8),
-(9, 9),
-(10, 10),
-(11, 11),
-(12, 12),
-(13, 13),
-(14, 14),
-(15, 15),
-(16, 16),
-(17, 17),
-(18, 18),
-(19, 19),
-(20, 20),
-(21, 21),
-(22, 22),
-(23, 23),
-(24, 24),
-(25, 25),
-(26, 26),
-(27, 27),
-(28, 28),
-(29, 29),
-(30, 30),
-(31, 31),
-(32, 32),
-(33, 33),
-(34, 34),
-(35, 35),
-(36, 36),
-(37, 37),
-(38, 38),
-(39, 39),
-(40, 40),
-(41, 41),
-(42, 42),
-(43, 43),
-(44, 44),
-(45, 45),
-(46, 46),
-(47, 47),
-(48, 48),
-(49, 49),
-(50, 50);
-
+(1, 12, 5, 1, 'Completado', 'Consulta general', '2025-05-01 09:00:00'),
+(2, 7, 14, NULL, 'Pendiente', 'Control de presión arterial', '2025-05-01 10:30:00'),
+(3, 33, 2, 3, 'Cancelado', 'Revisión odontológica', '2025-05-01 11:00:00'),
+(4, 18, 22, 4, 'Completado', 'Examen de laboratorio', '2025-05-01 12:15:00'),
+(5, 49, 8, NULL, 'Pendiente', 'Consulta psicológica', '2025-05-02 08:45:00'),
+(6, 6, 17, 6, 'Completado', 'Vacunación', '2025-05-02 09:30:00'),
+(7, 25, 4, 7, 'Pendiente', 'Evaluación preoperatoria', '2025-05-02 10:00:00'),
+(8, 15, 30, NULL, 'Completado', 'Consulta pediátrica', '2025-05-02 11:00:00'),
+(9, 44, 9, 9, 'Completado', 'Electrocardiograma', '2025-05-02 13:30:00'),
+(10, 9, 1, 10, 'Cancelado', 'Control de diabetes', '2025-05-03 08:00:00'),
+(11, 20, 11, NULL, 'Completado', 'Consulta general', '2025-05-03 09:00:00'),
+(12, 3, 3, 12, 'Pendiente', 'Curación de herida', '2025-05-03 10:15:00'),
+(13, 47, 6, 13, 'Completado', 'Consulta nutricional', '2025-05-03 11:30:00'),
+(14, 30, 25, NULL, 'Completado', 'Terapia respiratoria', '2025-05-03 12:45:00'),
+(15, 39, 12, 15, 'Pendiente', 'Examen de sangre', '2025-05-03 13:15:00'),
+(16, 5, 10, 16, 'Cancelado', 'Consulta ginecológica', '2025-05-04 09:00:00'),
+(17, 14, 18, NULL, 'Pendiente', 'Consulta urológica', '2025-05-04 10:00:00'),
+(18, 26, 21, 18, 'Completado', 'Consulta dermatológica', '2025-05-04 11:30:00'),
+(19, 2, 7, 19, 'Pendiente', 'Evaluación de cirugía menor', '2025-05-04 13:00:00'),
+(20, 41, 19, NULL, 'Completado', 'Consulta geriátrica', '2025-05-04 14:00:00'),
+(21, 50, 27, 21, 'Pendiente', 'Consulta traumatológica', '2025-05-05 08:00:00'),
+(22, 19, 13, 22, 'Cancelado', 'Vacunación', '2025-05-05 09:30:00'),
+(23, 1, 24, NULL, 'Completado', 'Consulta psiquiátrica', '2025-05-05 10:00:00'),
+(24, 22, 20, 24, 'Completado', 'Toma de signos vitales', '2025-05-05 11:00:00'),
+(25, 36, 29, 25, 'Pendiente', 'Evaluación neurológica', '2025-05-05 12:30:00'),
+(26, 4, 5, NULL, 'Completado', 'Chequeo anual', '2025-05-05 13:00:00'),
+(27, 32, 6, 27, 'Pendiente', 'Consulta general', '2025-05-06 09:00:00'),
+(28, 13, 1, 28, 'Cancelado', 'Consulta ginecológica', '2025-05-06 10:00:00'),
+(29, 46, 14, NULL, 'Completado', 'Consulta psicológica', '2025-05-06 11:30:00'),
+(30, 35, 3, 30, 'Completado', 'Revisión dental', '2025-05-06 12:00:00'),
+(31, 21, 2, 31, 'Pendiente', 'Curación postoperatoria', '2025-05-06 13:15:00'),
+(32, 10, 8, NULL, 'Completado', 'Electrocardiograma', '2025-05-07 08:45:00'),
+(33, 17, 23, 33, 'Completado', 'Control prenatal', '2025-05-07 10:00:00'),
+(34, 45, 28, 34, 'Pendiente', 'Evaluación nutricional', '2025-05-07 11:15:00'),
+(35, 23, 15, NULL, 'Cancelado', 'Control posparto', '2025-05-07 12:00:00'),
+(36, 37, 16, 36, 'Completado', 'Chequeo pediátrico', '2025-05-07 13:30:00'),
+(37, 8, 26, 37, 'Pendiente', 'Consulta traumatológica', '2025-05-08 09:00:00'),
+(38, 11, 30, NULL, 'Completado', 'Examen auditivo', '2025-05-08 10:15:00'),
+(39, 43, 4, 39, 'Pendiente', 'Consulta oftalmológica', '2025-05-08 11:00:00'),
+(40, 28, 22, 40, 'Completado', 'Control de medicación', '2025-05-08 13:00:00'),
+(41, 24, 7, NULL, 'Cancelado', 'Consulta geriátrica', '2025-05-08 14:15:00'),
+(42, 38, 17, 42, 'Completado', 'Evaluación preoperatoria', '2025-05-09 08:00:00'),
+(43, 40, 19, 43, 'Pendiente', 'Consulta odontológica', '2025-05-09 09:00:00'),
+(44, 16, 12, NULL, 'Completado', 'Consulta general', '2025-05-09 10:00:00'),
+(45, 29, 9, 45, 'Completado', 'Vacunación', '2025-05-09 11:00:00'),
+(46, 31, 6, 46, 'Pendiente', 'Consulta nutricional', '2025-05-09 12:30:00'),
+(47, 48, 11, NULL, 'Completado', 'Control de presión arterial', '2025-05-10 08:30:00'),
+(48, 34, 25, 48, 'Pendiente', 'Consulta ginecológica', '2025-05-10 09:30:00'),
+(49, 42, 13, 49, 'Cancelado', 'Chequeo general', '2025-05-10 10:30:00'),
+(50, 27, 2, 50, 'Completado', 'Electrocardiograma', '2025-05-10 11:45:00'),
+(51, 9, 1, NULL, 'Pendiente', 'Consulta general', '2025-05-10 12:00:00'),
+(52, 12, 14, NULL, 'Completado', 'Control de peso', '2025-05-11 09:00:00'),
+(53, 3, 3, NULL, 'Completado', 'Consulta nutricional', '2025-05-11 10:00:00'),
+(54, 47, 20, NULL, 'Pendiente', 'Curación de herida', '2025-05-11 11:00:00'),
+(55, 6, 21, NULL, 'Cancelado', 'Evaluación neurológica', '2025-05-11 12:00:00'),
+(56, 44, 24, NULL, 'Completado', 'Consulta psicológica', '2025-05-11 13:00:00'),
+(57, 15, 5, NULL, 'Pendiente', 'Chequeo de rutina', '2025-05-11 14:00:00'),
+(58, 50, 28, NULL, 'Completado', 'Examen físico', '2025-05-12 08:30:00'),
+(59, 19, 18, NULL, 'Completado', 'Consulta pediátrica', '2025-05-12 09:30:00'),
+(60, 36, 10, NULL, 'Pendiente', 'Revisión de tratamiento', '2025-05-12 10:30:00'),
+(61, 33, 27, NULL, 'Cancelado', 'Consulta de seguimiento', '2025-05-12 11:45:00'),
+(62, 18, 8, NULL, 'Completado', 'Control médico', '2025-05-12 13:00:00'),
+(63, 25, 16, NULL, 'Pendiente', 'Evaluación médica', '2025-05-12 14:00:00'),
+(64, 7, 6, NULL, 'Completado', 'Consulta general', '2025-05-13 09:00:00'),
+(65, 22, 7, NULL, 'Cancelado', 'Control de diabetes', '2025-05-13 10:00:00'),
+(66, 30, 1, NULL, 'Pendiente', 'Examen de sangre', '2025-05-13 11:00:00'),
+(67, 39, 22, NULL, 'Completado', 'Consulta urológica', '2025-05-13 12:00:00'),
+(68, 14, 19, NULL, 'Pendiente', 'Control de peso', '2025-05-13 13:00:00'),
+(69, 35, 15, NULL, 'Completado', 'Consulta general', '2025-05-13 14:00:00'),
+(70, 4, 26, NULL, 'Pendiente', 'Consulta dermatológica', '2025-05-14 09:00:00'),
+(71, 10, 30, NULL, 'Completado', 'Control de presión arterial', '2025-05-14 10:00:00'),
+(72, 23, 4, NULL, 'Pendiente', 'Consulta psicológica', '2025-05-14 11:00:00'),
+(73, 28, 17, NULL, 'Cancelado', 'Evaluación general', '2025-05-14 12:00:00'),
+(74, 1, 23, NULL, 'Completado', 'Consulta médica', '2025-05-14 13:00:00'),
+(75, 5, 13, NULL, 'Pendiente', 'Chequeo anual', '2025-05-14 14:00:00'),
+(76, 41, 11, NULL, 'Completado', 'Consulta cardiológica', '2025-05-15 08:00:00'),
+(77, 26, 9, NULL, 'Pendiente', 'Examen oftalmológico', '2025-05-15 09:00:00'),
+(78, 37, 12, NULL, 'Completado', 'Consulta endocrinológica', '2025-05-15 10:00:00'),
+(79, 13, 29, NULL, 'Cancelado', 'Terapia física', '2025-05-15 11:00:00'),
+(80, 49, 18, NULL, 'Completado', 'Control de embarazo', '2025-05-15 12:00:00'),
+(81, 20, 2, NULL, 'Pendiente', 'Consulta reumatológica', '2025-05-15 13:00:00'),
+(82, 32, 16, NULL, 'Completado', 'Examen neurológico', '2025-05-15 14:00:00'),
+(83, 8, 24, NULL, 'Pendiente', 'Consulta oncológica', '2025-05-16 08:30:00'),
+(84, 46, 5, NULL, 'Completado', 'Control postoperatorio', '2025-05-16 09:30:00'),
+(85, 17, 27, NULL, 'Cancelado', 'Consulta neumológica', '2025-05-16 10:30:00'),
+(86, 45, 20, NULL, 'Completado', 'Evaluación geriátrica', '2025-05-16 11:30:00'),
+(87, 21, 8, NULL, 'Pendiente', 'Consulta gastroenterológica', '2025-05-16 12:30:00'),
+(88, 38, 14, NULL, 'Completado', 'Control de hipertensión', '2025-05-16 13:30:00'),
+(89, 11, 25, NULL, 'Pendiente', 'Consulta hematológica', '2025-05-16 14:30:00'),
+(90, 43, 1, NULL, 'Completado', 'Chequeo preventivo', '2025-05-16 15:00:00');
 
 -- DATOS PARA LA TABLA SERVICIO_MEDICO
 
