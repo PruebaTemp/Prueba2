@@ -9,16 +9,8 @@ DROP TABLE IF EXISTS examen;
 DROP TABLE IF EXISTS tratamiento;
 DROP TABLE IF EXISTS diagnostico;
 DROP TABLE IF EXISTS consulta_medica;
-
-DO $$
-BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.tables 
-               WHERE table_name = 'cita_medica' 
-               AND table_schema = 'public') THEN
-        ALTER TABLE cita_medica DROP CONSTRAINT IF EXISTS fk_orden;
-    END IF;
-END$$;
-
+DROP TABLE IF EXISTS cita_sin_orden;
+DROP TABLE IF EXISTS cita_con_orden;
 DROP TABLE IF EXISTS orden_medica;
 DROP TABLE IF EXISTS servicio_medico;
 DROP TABLE IF EXISTS cita_medica;
@@ -298,11 +290,9 @@ CREATE TABLE IF NOT EXISTS solicitud (
 
 CREATE TABLE IF NOT EXISTS cita_medica (
     id_cita_medica SERIAL PRIMARY KEY,
-    id_orden INT,
     id_paciente INT NOT NULL,
     id_personal_medico INT NOT NULL,
     estado VARCHAR(50) NOT NULL,
-    actividad VARCHAR(100),
     fecha_hora_programada TIMESTAMP NOT NULL,
     fecha_hora_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (id_paciente) REFERENCES paciente(id_paciente),
@@ -327,6 +317,17 @@ CREATE TABLE IF NOT EXISTS orden_medica (
     cantidad INT NOT NULL DEFAULT 1 CHECK (cantidad > 0),
     estado TEXT NOT NULL DEFAULT 'Pendiente',
     FOREIGN KEY (id_servicio_medico) REFERENCES servicio_medico(id_servicio_medico),
+    FOREIGN KEY (id_subtipo_servicio) REFERENCES subtipo_servicio(id_subtipo_servicio)
+);
+
+CREATE TABLE IF NOT EXISTS cita_con_orden (
+    id_cita_medica INTEGER PRIMARY KEY REFERENCES cita_medica(id_cita_medica),
+    id_orden INTEGER NOT NULL REFERENCES orden_medica(id_orden)
+);
+
+CREATE TABLE IF NOT EXISTS cita_sin_orden (
+    id_cita_medica INTEGER PRIMARY KEY REFERENCES cita_medica(id_cita_medica),
+    id_subtipo_servicio INT NOT NULL,
     FOREIGN KEY (id_subtipo_servicio) REFERENCES subtipo_servicio(id_subtipo_servicio)
 );
 
@@ -1394,99 +1395,100 @@ INSERT INTO morbilidad (
 
 -- DATOS PARA LA TABLA CITA_MEDICA
 
+-- Insertar en cita_medica (tabla principal)
 INSERT INTO cita_medica (
-    id_cita_medica, id_paciente, id_personal_medico, id_orden, estado, actividad, fecha_hora_programada
+    id_cita_medica, id_paciente, id_personal_medico, estado, fecha_hora_programada
 ) VALUES
-(1, 12, 5, 1, 'Completada', 'Consulta general', '2025-05-01 09:00:00'),
-(2, 7, 14, NULL, 'Pendiente', 'Control de presión arterial', '2025-05-01 10:30:00'),
-(3, 33, 2, 3, 'Cancelada', 'Revisión odontológica', '2025-05-01 11:00:00'),
-(4, 18, 22, 4, 'Completada', 'Examen de laboratorio', '2025-05-01 12:15:00'),
-(5, 49, 8, NULL, 'Pendiente', 'Consulta psicológica', '2025-05-02 08:45:00'),
-(6, 6, 17, 6, 'Completada', 'Vacunación', '2025-05-02 09:30:00'),
-(7, 25, 4, 7, 'Pendiente', 'Evaluación preoperatoria', '2025-05-02 10:00:00'),
-(8, 15, 30, NULL, 'Completada', 'Consulta pediátrica', '2025-05-02 11:00:00'),
-(9, 44, 9, 9, 'Completada', 'Electrocardiograma', '2025-05-02 13:30:00'),
-(10, 9, 1, 10, 'Cancelada', 'Control de diabetes', '2025-05-03 08:00:00'),
-(11, 20, 11, NULL, 'Completada', 'Consulta general', '2025-05-03 09:00:00'),
-(12, 3, 3, 12, 'Pendiente', 'Curación de herida', '2025-05-03 10:15:00'),
-(13, 47, 6, 13, 'Completada', 'Consulta nutricional', '2025-05-03 11:30:00'),
-(14, 30, 25, NULL, 'Completada', 'Terapia respiratoria', '2025-05-03 12:45:00'),
-(15, 39, 12, 15, 'Pendiente', 'Examen de sangre', '2025-05-03 13:15:00'),
-(16, 5, 10, 16, 'Cancelada', 'Consulta ginecológica', '2025-05-04 09:00:00'),
-(17, 14, 18, NULL, 'Pendiente', 'Consulta urológica', '2025-05-04 10:00:00'),
-(18, 26, 21, 18, 'Completada', 'Consulta dermatológica', '2025-05-04 11:30:00'),
-(19, 2, 7, 19, 'Pendiente', 'Evaluación de cirugía menor', '2025-05-04 13:00:00'),
-(20, 41, 19, NULL, 'Completada', 'Consulta geriátrica', '2025-05-04 14:00:00'),
-(21, 50, 27, 21, 'Pendiente', 'Consulta traumatológica', '2025-05-05 08:00:00'),
-(22, 19, 13, 22, 'Cancelada', 'Vacunación', '2025-05-05 09:30:00'),
-(23, 1, 24, NULL, 'Completada', 'Consulta psiquiátrica', '2025-05-05 10:00:00'),
-(24, 22, 20, 24, 'Completada', 'Toma de signos vitales', '2025-05-05 11:00:00'),
-(25, 36, 29, 25, 'Pendiente', 'Evaluación neurológica', '2025-05-05 12:30:00'),
-(26, 4, 5, NULL, 'Completada', 'Chequeo anual', '2025-05-05 13:00:00'),
-(27, 32, 6, 27, 'Pendiente', 'Consulta general', '2025-05-06 09:00:00'),
-(28, 13, 1, 28, 'Cancelada', 'Consulta ginecológica', '2025-05-06 10:00:00'),
-(29, 46, 14, NULL, 'Completada', 'Consulta psicológica', '2025-05-06 11:30:00'),
-(30, 35, 3, 30, 'Completada', 'Revisión dental', '2025-05-06 12:00:00'),
-(31, 21, 2, 31, 'Pendiente', 'Curación postoperatoria', '2025-05-06 13:15:00'),
-(32, 10, 8, NULL, 'Completada', 'Electrocardiograma', '2025-05-07 08:45:00'),
-(33, 17, 23, 33, 'Completada', 'Control prenatal', '2025-05-07 10:00:00'),
-(34, 45, 28, 34, 'Pendiente', 'Evaluación nutricional', '2025-05-07 11:15:00'),
-(35, 23, 15, NULL, 'Cancelada', 'Control posparto', '2025-05-07 12:00:00'),
-(36, 37, 16, 36, 'Completada', 'Chequeo pediátrico', '2025-05-07 13:30:00'),
-(37, 8, 26, 37, 'Pendiente', 'Consulta traumatológica', '2025-05-08 09:00:00'),
-(38, 11, 30, NULL, 'Completada', 'Examen auditivo', '2025-05-08 10:15:00'),
-(39, 43, 4, 39, 'Pendiente', 'Consulta oftalmológica', '2025-05-08 11:00:00'),
-(40, 28, 22, 40, 'Completada', 'Control de medicación', '2025-05-08 13:00:00'),
-(41, 24, 7, NULL, 'Cancelada', 'Consulta geriátrica', '2025-05-08 14:15:00'),
-(42, 38, 17, 42, 'Completada', 'Evaluación preoperatoria', '2025-05-09 08:00:00'),
-(43, 40, 19, 43, 'Pendiente', 'Consulta odontológica', '2025-05-09 09:00:00'),
-(44, 16, 12, NULL, 'Completada', 'Consulta general', '2025-05-09 10:00:00'),
-(45, 29, 9, 45, 'Completada', 'Vacunación', '2025-05-09 11:00:00'),
-(46, 31, 6, 46, 'Pendiente', 'Consulta nutricional', '2025-05-09 12:30:00'),
-(47, 48, 11, NULL, 'Completada', 'Control de presión arterial', '2025-05-10 08:30:00'),
-(48, 34, 25, 48, 'Pendiente', 'Consulta ginecológica', '2025-05-10 09:30:00'),
-(49, 42, 13, 49, 'Cancelada', 'Chequeo general', '2025-05-10 10:30:00'),
-(50, 27, 2, 50, 'Completada', 'Electrocardiograma', '2025-05-10 11:45:00'),
-(51, 9, 1, NULL, 'Pendiente', 'Consulta general', '2025-05-10 12:00:00'),
-(52, 12, 14, NULL, 'Completada', 'Control de peso', '2025-05-11 09:00:00'),
-(53, 3, 3, NULL, 'Completada', 'Consulta nutricional', '2025-05-11 10:00:00'),
-(54, 47, 20, NULL, 'Pendiente', 'Curación de herida', '2025-05-11 11:00:00'),
-(55, 6, 21, NULL, 'Cancelada', 'Evaluación neurológica', '2025-05-11 12:00:00'),
-(56, 44, 24, NULL, 'Completada', 'Consulta psicológica', '2025-05-11 13:00:00'),
-(57, 15, 5, NULL, 'Pendiente', 'Chequeo de rutina', '2025-05-11 14:00:00'),
-(58, 50, 28, NULL, 'Completada', 'Examen físico', '2025-05-12 08:30:00'),
-(59, 19, 18, NULL, 'Completada', 'Consulta pediátrica', '2025-05-12 09:30:00'),
-(60, 36, 10, NULL, 'Pendiente', 'Revisión de tratamiento', '2025-05-12 10:30:00'),
-(61, 33, 27, NULL, 'Cancelada', 'Consulta de seguimiento', '2025-05-12 11:45:00'),
-(62, 18, 8, NULL, 'Completada', 'Control médico', '2025-05-12 13:00:00'),
-(63, 25, 16, NULL, 'Pendiente', 'Evaluación médica', '2025-05-12 14:00:00'),
-(64, 7, 6, NULL, 'Completada', 'Consulta general', '2025-05-13 09:00:00'),
-(65, 22, 7, NULL, 'Cancelada', 'Control de diabetes', '2025-05-13 10:00:00'),
-(66, 30, 1, NULL, 'Pendiente', 'Examen de sangre', '2025-05-13 11:00:00'),
-(67, 39, 22, NULL, 'Completada', 'Consulta urológica', '2025-05-13 12:00:00'),
-(68, 14, 19, NULL, 'Pendiente', 'Control de peso', '2025-05-13 13:00:00'),
-(69, 35, 15, NULL, 'Completada', 'Consulta general', '2025-05-13 14:00:00'),
-(70, 4, 26, NULL, 'Pendiente', 'Consulta dermatológica', '2025-05-14 09:00:00'),
-(71, 10, 30, NULL, 'Completada', 'Control de presión arterial', '2025-05-14 10:00:00'),
-(72, 23, 4, NULL, 'Pendiente', 'Consulta psicológica', '2025-05-14 11:00:00'),
-(73, 28, 17, NULL, 'Cancelada', 'Evaluación general', '2025-05-14 12:00:00'),
-(74, 1, 23, NULL, 'Completada', 'Consulta médica', '2025-05-14 13:00:00'),
-(75, 5, 13, NULL, 'Pendiente', 'Chequeo anual', '2025-05-14 14:00:00'),
-(76, 41, 11, NULL, 'Completada', 'Consulta cardiológica', '2025-05-15 08:00:00'),
-(77, 26, 9, NULL, 'Pendiente', 'Examen oftalmológico', '2025-05-15 09:00:00'),
-(78, 37, 12, NULL, 'Completada', 'Consulta endocrinológica', '2025-05-15 10:00:00'),
-(79, 13, 29, NULL, 'Cancelada', 'Terapia física', '2025-05-15 11:00:00'),
-(80, 49, 18, NULL, 'Completada', 'Control de embarazo', '2025-05-15 12:00:00'),
-(81, 20, 2, NULL, 'Pendiente', 'Consulta reumatológica', '2025-05-15 13:00:00'),
-(82, 32, 16, NULL, 'Completada', 'Examen neurológico', '2025-05-15 14:00:00'),
-(83, 8, 24, NULL, 'Pendiente', 'Consulta oncológica', '2025-05-16 08:30:00'),
-(84, 46, 5, NULL, 'Completada', 'Control postoperatorio', '2025-05-16 09:30:00'),
-(85, 17, 27, NULL, 'Cancelada', 'Consulta neumológica', '2025-05-16 10:30:00'),
-(86, 45, 20, NULL, 'Completada', 'Evaluación geriátrica', '2025-05-16 11:30:00'),
-(87, 21, 8, NULL, 'Pendiente', 'Consulta gastroenterológica', '2025-05-16 12:30:00'),
-(88, 38, 14, NULL, 'Completada', 'Control de hipertensión', '2025-05-16 13:30:00'),
-(89, 11, 25, NULL, 'Pendiente', 'Consulta hematológica', '2025-05-16 14:30:00'),
-(90, 43, 1, NULL, 'Completada', 'Chequeo preventivo', '2025-05-16 15:00:00');
+(1, 12, 5, 'Completada', '2025-05-01 09:00:00'),
+(2, 7, 14, 'Pendiente', '2025-05-01 10:30:00'),
+(3, 33, 2, 'Cancelada', '2025-05-01 11:00:00'),
+(4, 18, 22, 'Completada', '2025-05-01 12:15:00'),
+(5, 49, 8, 'Pendiente', '2025-05-02 08:45:00'),
+(6, 6, 17, 'Completada', '2025-05-02 09:30:00'),
+(7, 25, 4, 'Pendiente', '2025-05-02 10:00:00'),
+(8, 15, 30, 'Completada', '2025-05-02 11:00:00'),
+(9, 44, 9, 'Completada', '2025-05-02 13:30:00'),
+(10, 9, 1, 'Cancelada', '2025-05-03 08:00:00'),
+(11, 20, 11, 'Completada', '2025-05-03 09:00:00'),
+(12, 3, 3, 'Pendiente', '2025-05-03 10:15:00'),
+(13, 47, 6, 'Completada', '2025-05-03 11:30:00'),
+(14, 30, 25, 'Completada', '2025-05-03 12:45:00'),
+(15, 39, 12, 'Pendiente', '2025-05-03 13:15:00'),
+(16, 5, 10, 'Cancelada', '2025-05-04 09:00:00'),
+(17, 14, 18, 'Pendiente', '2025-05-04 10:00:00'),
+(18, 26, 21, 'Completada', '2025-05-04 11:30:00'),
+(19, 2, 7, 'Pendiente', '2025-05-04 13:00:00'),
+(20, 41, 19, 'Completada', '2025-05-04 14:00:00'),
+(21, 50, 27, 'Pendiente', '2025-05-05 08:00:00'),
+(22, 19, 13, 'Cancelada', '2025-05-05 09:30:00'),
+(23, 1, 24, 'Completada', '2025-05-05 10:00:00'),
+(24, 22, 20, 'Completada', '2025-05-05 11:00:00'),
+(25, 36, 29, 'Pendiente', '2025-05-05 12:30:00'),
+(26, 4, 5, 'Completada', '2025-05-05 13:00:00'),
+(27, 32, 6, 'Pendiente', '2025-05-06 09:00:00'),
+(28, 13, 1, 'Cancelada', '2025-05-06 10:00:00'),
+(29, 46, 14, 'Completada', '2025-05-06 11:30:00'),
+(30, 35, 3, 'Completada', '2025-05-06 12:00:00'),
+(31, 21, 2, 'Pendiente', '2025-05-06 13:15:00'),
+(32, 10, 8, 'Completada', '2025-05-07 08:45:00'),
+(33, 17, 23, 'Completada', '2025-05-07 10:00:00'),
+(34, 45, 28, 'Pendiente', '2025-05-07 11:15:00'),
+(35, 23, 15, 'Cancelada', '2025-05-07 12:00:00'),
+(36, 37, 16, 'Completada', '2025-05-07 13:30:00'),
+(37, 8, 26, 'Pendiente', '2025-05-08 09:00:00'),
+(38, 11, 30, 'Completada', '2025-05-08 10:15:00'),
+(39, 43, 4, 'Pendiente', '2025-05-08 11:00:00'),
+(40, 28, 22, 'Completada', '2025-05-08 13:00:00'),
+(41, 24, 7, 'Cancelada', '2025-05-08 14:15:00'),
+(42, 38, 17, 'Completada', '2025-05-09 08:00:00'),
+(43, 40, 19, 'Pendiente', '2025-05-09 09:00:00'),
+(44, 16, 12, 'Completada', '2025-05-09 10:00:00'),
+(45, 29, 9, 'Completada', '2025-05-09 11:00:00'),
+(46, 31, 6, 'Pendiente', '2025-05-09 12:30:00'),
+(47, 48, 11, 'Completada', '2025-05-10 08:30:00'),
+(48, 34, 25, 'Pendiente', '2025-05-10 09:30:00'),
+(49, 42, 13, 'Cancelada', '2025-05-10 10:30:00'),
+(50, 27, 2, 'Completada', '2025-05-10 11:45:00'),
+(51, 9, 1, 'Pendiente', '2025-05-10 12:00:00'),
+(52, 12, 14, 'Completada', '2025-05-11 09:00:00'),
+(53, 3, 3, 'Completada', '2025-05-11 10:00:00'),
+(54, 47, 20, 'Pendiente', '2025-05-11 11:00:00'),
+(55, 6, 21, 'Cancelada', '2025-05-11 12:00:00'),
+(56, 44, 24, 'Completada', '2025-05-11 13:00:00'),
+(57, 15, 5, 'Pendiente', '2025-05-11 14:00:00'),
+(58, 50, 28, 'Completada', '2025-05-12 08:30:00'),
+(59, 19, 18, 'Completada', '2025-05-12 09:30:00'),
+(60, 36, 10, 'Pendiente', '2025-05-12 10:30:00'),
+(61, 33, 27, 'Cancelada', '2025-05-12 11:45:00'),
+(62, 18, 8, 'Completada', '2025-05-12 13:00:00'),
+(63, 25, 16, 'Pendiente', '2025-05-12 14:00:00'),
+(64, 7, 6, 'Completada', '2025-05-13 09:00:00'),
+(65, 22, 7, 'Cancelada', '2025-05-13 10:00:00'),
+(66, 30, 1, 'Pendiente', '2025-05-13 11:00:00'),
+(67, 39, 22, 'Completada', '2025-05-13 12:00:00'),
+(68, 14, 19, 'Pendiente', '2025-05-13 13:00:00'),
+(69, 35, 15, 'Completada', '2025-05-13 14:00:00'),
+(70, 4, 26, 'Pendiente', '2025-05-14 09:00:00'),
+(71, 10, 30, 'Completada', '2025-05-14 10:00:00'),
+(72, 23, 4, 'Pendiente', '2025-05-14 11:00:00'),
+(73, 28, 17, 'Cancelada', '2025-05-14 12:00:00'),
+(74, 1, 23, 'Completada', '2025-05-14 13:00:00'),
+(75, 5, 13, 'Pendiente', '2025-05-14 14:00:00'),
+(76, 41, 11, 'Completada', '2025-05-15 08:00:00'),
+(77, 26, 9, 'Pendiente', '2025-05-15 09:00:00'),
+(78, 37, 12, 'Completada', '2025-05-15 10:00:00'),
+(79, 13, 29, 'Cancelada', '2025-05-15 11:00:00'),
+(80, 49, 18, 'Completada', '2025-05-15 12:00:00'),
+(81, 20, 2, 'Pendiente', '2025-05-15 13:00:00'),
+(82, 32, 16, 'Completada', '2025-05-15 14:00:00'),
+(83, 8, 24, 'Pendiente', '2025-05-16 08:30:00'),
+(84, 46, 5, 'Completada', '2025-05-16 09:30:00'),
+(85, 17, 27, 'Cancelada', '2025-05-16 10:30:00'),
+(86, 45, 20, 'Completada', '2025-05-16 11:30:00'),
+(87, 21, 8, 'Pendiente', '2025-05-16 12:30:00'),
+(88, 38, 14, 'Completada', '2025-05-16 13:30:00'),
+(89, 11, 25, 'Pendiente', '2025-05-16 14:30:00'),
+(90, 43, 1, 'Completada', '2025-05-16 15:00:00');
 
 -- DATOS PARA LA TABLA SERVICIO_MEDICO
 
@@ -1636,9 +1638,101 @@ INSERT INTO orden_medica (id_orden, id_servicio_medico, motivo, observaciones, i
 (49, 49, 'Quemaduras de segundo grado', 'Quemaduras en 25% de superficie corporal por escaldadura', 50, 1, 'Agendada'),
 (50, 50, 'Intoxicación por organofosforados', 'Paciente rural con síndrome colinérgico por exposición a pesticidas', 54, 1, 'Agendada');
 
-ALTER TABLE cita_medica
-ADD CONSTRAINT fk_orden
-FOREIGN KEY (id_orden) REFERENCES orden_medica(id_orden);
+-- Insertar en cita_con_orden
+INSERT INTO cita_con_orden (id_cita_medica, id_orden) VALUES
+(1, 1),
+(3, 3),
+(4, 4),
+(6, 6),
+(7, 7),
+(9, 9),
+(10, 10),
+(12, 12),
+(13, 13),
+(15, 15),
+(16, 16),
+(18, 18),
+(19, 19),
+(21, 21),
+(22, 22),
+(24, 24),
+(25, 25),
+(27, 27),
+(28, 28),
+(30, 30),
+(31, 31),
+(33, 33),
+(34, 34),
+(36, 36),
+(37, 37),
+(39, 39),
+(40, 40),
+(42, 42),
+(43, 43),
+(45, 45),
+(46, 46),
+(48, 48),
+(49, 49),
+(50, 50);
+
+-- Insertar en cita_sin_orden
+INSERT INTO cita_sin_orden (id_cita_medica, id_subtipo_servicio) VALUES
+(2, 1),   -- Control de presión arterial -> Consulta Medicina General
+(5, 7),   -- Consulta psicológica -> Consulta Psicológica Adulto
+(8, 2),   -- Consulta pediátrica -> Consulta Pediatría
+(11, 1),  -- Consulta general -> Consulta Medicina General
+(14, 1),  -- Terapia respiratoria -> Consulta Medicina General
+(17, 1),  -- Consulta urológica -> Consulta Medicina General (asumo que no hay subtipo específico para urología)
+(20, 1),  -- Consulta geriátrica -> Consulta Medicina General
+(23, 7),  -- Consulta psiquiátrica -> Consulta Psicológica Adulto
+(26, 1),  -- Chequeo anual -> Consulta Medicina General
+(29, 7),  -- Consulta psicológica -> Consulta Psicológica Adulto
+(32, 1),  -- Electrocardiograma -> Consulta Medicina General (asociado a cardiología pero no hay subtipo específico para exámenes)
+(35, 3),  -- Control posparto -> Consulta Ginecología
+(38, 1),  -- Examen auditivo -> Consulta Medicina General
+(41, 1),  -- Consulta geriátrica -> Consulta Medicina General
+(44, 1),  -- Consulta general -> Consulta Medicina General
+(47, 1),  -- Control de presión arterial -> Consulta Medicina General
+(51, 1),  -- Consulta general -> Consulta Medicina General
+(52, 1),  -- Control de peso -> Consulta Medicina General
+(53, 1),  -- Consulta nutricional -> Consulta Medicina General (nutrición sería mejor pero no hay subtipo específico)
+(54, 1),  -- Curación de herida -> Consulta Medicina General
+(55, 4),  -- Evaluación neurológica -> Consulta Cardiología (asumo relacionado)
+(56, 7),  -- Consulta psicológica -> Consulta Psicológica Adulto
+(57, 1),  -- Chequeo de rutina -> Consulta Medicina General
+(58, 1),  -- Examen físico -> Consulta Medicina General
+(59, 2),  -- Consulta pediátrica -> Consulta Pediatría
+(60, 1),  -- Revisión de tratamiento -> Consulta Medicina General
+(61, 1),  -- Consulta de seguimiento -> Consulta Medicina General
+(62, 1),  -- Control médico -> Consulta Medicina General
+(63, 1),  -- Evaluación médica -> Consulta Medicina General
+(64, 1),  -- Consulta general -> Consulta Medicina General
+(65, 1),  -- Control de diabetes -> Consulta Medicina General
+(66, 1),  -- Examen de sangre -> Consulta Medicina General
+(67, 1),  -- Consulta urológica -> Consulta Medicina General
+(68, 1),  -- Control de peso -> Consulta Medicina General
+(69, 1),  -- Consulta general -> Consulta Medicina General
+(70, 5),  -- Consulta dermatológica -> Consulta Dermatología
+(71, 1),  -- Control de presión arterial -> Consulta Medicina General
+(72, 7),  -- Consulta psicológica -> Consulta Psicológica Adulto
+(73, 1),  -- Evaluación general -> Consulta Medicina General
+(74, 1),  -- Consulta médica -> Consulta Medicina General
+(75, 1),  -- Chequeo anual -> Consulta Medicina General
+(76, 4),  -- Consulta cardiológica -> Consulta Cardiología
+(77, 1),  -- Examen oftalmológico -> Consulta Medicina General (no hay subtipo para oftalmología)
+(78, 1),  -- Consulta endocrinológica -> Consulta Medicina General
+(79, 1),  -- Terapia física -> Consulta Medicina General
+(80, 3),  -- Control de embarazo -> Consulta Ginecología
+(81, 1),  -- Consulta reumatológica -> Consulta Medicina General
+(82, 4),  -- Examen neurológico -> Consulta Cardiología (asociado)
+(83, 1),  -- Consulta oncológica -> Consulta Medicina General
+(84, 1),  -- Control postoperatorio -> Consulta Medicina General
+(85, 1),  -- Consulta neumológica -> Consulta Medicina General
+(86, 1),  -- Evaluación geriátrica -> Consulta Medicina General
+(87, 1),  -- Consulta gastroenterológica -> Consulta Medicina General
+(88, 1),  -- Control de hipertensión -> Consulta Medicina General
+(89, 1),  -- Consulta hematológica -> Consulta Medicina General
+(90, 1);  -- Chequeo preventivo -> Consulta Medicina General
 
 -- DATOS PARA LA TABLA CONSULTA_MEDICA
 
