@@ -19,8 +19,8 @@ type Appointment = {
   id_cita_medica: number;
   id_paciente: number;
   id_personal_medico: number;
-  estado: string;
-  actividad: string;
+  estado: 'Pendiente' | 'Completada' | 'Cancelada' | 'Programada';
+  fecha_hora_programada: string;
   fecha_hora_registro: string;
   paciente: {
     persona: {
@@ -39,12 +39,30 @@ type Appointment = {
       descripcion: string;
     };
   };
-  servicio_medico: {
+  servicio_medico?: {
     fecha_servicio: string;
     hora_inicio_servicio: string;
     hora_fin_servicio: string;
     consulta_medica?: {
       id_tipo_servicio: number;
+      tipo_servicio: {
+        nombre: string;
+      };
+    };
+  };
+  cita_con_orden?: {
+    orden_medica: {
+      subtipo_servicio: {
+        nombre: string;
+        tipo_servicio: {
+          nombre: string;
+        };
+      };
+    };
+  };
+  cita_sin_orden?: {
+    subtipo_servicio: {
+      nombre: string;
       tipo_servicio: {
         nombre: string;
       };
@@ -160,33 +178,57 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
           throw pacienteError || new Error('No se encontró el paciente');
         }
 
-        // Obtener las citas del paciente
+        // Consulta mejorada para obtener citas con servicio médico si existe
         const { data, error } = await supabase
             .from('cita_medica')
             .select(`
-            id_cita_medica,
-            id_paciente,
-            id_personal_medico,
-            estado,
-            actividad,
-            fecha_hora_registro,
-            paciente: id_paciente (persona: id_persona (prenombres, primer_apellido, segundo_apellido)),
-            personal_medico: id_personal_medico (
-              persona: id_persona (prenombres, primer_apellido, segundo_apellido),
-              especialidad: id_especialidad (descripcion)
-            ),
-            servicio_medico: servicio_medico (
-              fecha_servicio,
-              hora_inicio_servicio,
-              hora_fin_servicio,
-              consulta_medica: consulta_medica (
-                id_tipo_servicio,
-                tipo_servicio: id_tipo_servicio (nombre)
+              id_cita_medica,
+              id_paciente,
+              id_personal_medico,
+              estado,
+              fecha_hora_programada,
+              fecha_hora_registro,
+              paciente: id_paciente (
+                persona: id_persona (
+                  prenombres,
+                  primer_apellido,
+                  segundo_apellido
+                )
+              ),
+              personal_medico: id_personal_medico (
+                persona: id_persona (
+                  prenombres,
+                  primer_apellido,
+                  segundo_apellido
+                ),
+                especialidad: id_especialidad (descripcion)
+              ),
+              servicio_medico: servicio_medico (
+                fecha_servicio,
+                hora_inicio_servicio,
+                hora_fin_servicio,
+                consulta_medica: consulta_medica (
+                  id_tipo_servicio,
+                  tipo_servicio: id_tipo_servicio (nombre)
+                )
+              ),
+              cita_con_orden: cita_con_orden (
+                orden_medica: id_orden (
+                  subtipo_servicio: id_subtipo_servicio (
+                    nombre,
+                    tipo_servicio: id_tipo_servicio (nombre)
+                  )
+                )
+              ),
+              cita_sin_orden: cita_sin_orden (
+                subtipo_servicio: id_subtipo_servicio (
+                  nombre,
+                  tipo_servicio: id_tipo_servicio (nombre)
+                )
               )
-            )
-          `)
+            `)
             .eq('id_paciente', pacienteData.id_paciente)
-            .order('fecha_hora_registro', { ascending: false });
+            .order('fecha_hora_programada', { ascending: false });
 
         if (error) throw error;
 
@@ -202,20 +244,35 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
     fetchAppointments();
   }, [user]);
 
+  const getServiceType = (appointment: Appointment) => {
+    if (appointment.cita_con_orden) {
+      return {
+        type: appointment.cita_con_orden.orden_medica.subtipo_servicio.tipo_servicio.nombre,
+        subtype: appointment.cita_con_orden.orden_medica.subtipo_servicio.nombre
+      };
+    }
+    if (appointment.cita_sin_orden) {
+      return {
+        type: appointment.cita_sin_orden.subtipo_servicio.tipo_servicio.nombre,
+        subtype: appointment.cita_sin_orden.subtipo_servicio.nombre
+      };
+    }
+    return { type: 'Consulta general', subtype: 'Consulta general' };
+  };
+
   const cancelAppointment = async (appointmentId: number) => {
     try {
       const { error } = await supabase
           .from('cita_medica')
-          .update({ estado: 'cancelada' })
+          .update({ estado: 'Cancelada' })
           .eq('id_cita_medica', appointmentId);
 
       if (error) throw error;
 
-      // Actualizar la lista de citas
       setAppointments(prev =>
           prev.map(a =>
               a.id_cita_medica === appointmentId
-                  ? { ...a, estado: 'cancelada' }
+                  ? { ...a, estado: 'Cancelada' }
                   : a
           )
       );
@@ -223,6 +280,59 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
       console.error('Error canceling appointment:', err);
       alert('No se pudo cancelar la cita');
     }
+  };
+
+  // Función para determinar si una cita es futura
+  const isFutureAppointment = (appointment: Appointment) => {
+    if (appointment.estado === 'Completada' || appointment.estado === 'Cancelada') {
+      return false;
+    }
+
+    const now = new Date();
+    const appointmentDate = new Date(appointment.fecha_hora_programada);
+    return appointmentDate > now;
+  };
+
+  // Función para obtener la fecha de la cita (programada o de servicio)
+  const getAppointmentDate = (appointment: Appointment) => {
+    if (appointment.estado === 'Completada' && appointment.servicio_medico?.length > 0) {
+      return new Date(appointment.servicio_medico[0].fecha_servicio);
+    }
+    return new Date(appointment.fecha_hora_programada);
+  };
+
+// Función para obtener la hora de la cita (programada o de servicio)
+  const getAppointmentTime = (appointment: Appointment) => {
+    if (appointment.estado === 'Completada' && appointment.servicio_medico?.length > 0) {
+      // Extraemos solo la parte de la hora (HH:MM) del string HH:MM:SS
+      return appointment.servicio_medico[0].hora_inicio_servicio.substring(0, 5);
+    }
+
+    const date = new Date(appointment.fecha_hora_programada);
+    return date.toLocaleTimeString('es-ES', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Formatear fecha en español
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('es-ES', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
+  // Formatear hora en formato 12h
+  const formatTime = (timeString: string) => {
+    // Si ya es un string formateado (de servicio médico)
+    if (timeString.includes(':')) {
+      const [hours, minutes] = timeString.split(':');
+      const hour = parseInt(hours, 10);
+      return `${hour > 12 ? hour - 12 : hour}:${minutes} ${hour >= 12 ? 'PM' : 'AM'}`;
+    }
+    return timeString; // Por si acaso ya está formateado
   };
 
   if (loading) {
@@ -242,28 +352,11 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
     );
   }
 
-  // Filtrar citas por estado
-  const upcomingAppointments = appointments.filter(a =>
-      ['programada', 'confirmada'].includes(a.estado.toLowerCase())
-  );
-  const pastAppointments = appointments.filter(a =>
-      ['completada', 'cancelada'].includes(a.estado.toLowerCase())
-  );
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    });
-  };
-
-  const formatTime = (timeString: string) => {
-    const [hours, minutes] = timeString.split(':');
-    const hour = parseInt(hours, 10);
-    return `${hour > 12 ? hour - 12 : hour}:${minutes} ${hour >= 12 ? 'PM' : 'AM'}`;
-  };
+  console.log(appointments)
+  // Filtrar citas usando la lógica mejorada
+  const upcomingAppointments = appointments.filter(isFutureAppointment);
+  const pastAppointments = appointments.filter(a => !isFutureAppointment(a));
+  console.log(upcomingAppointments)
 
   return (
       <div className="space-y-8">
@@ -275,47 +368,54 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
 
           <div className="divide-y divide-gray-200">
             {upcomingAppointments.length > 0 ? (
-                upcomingAppointments.map(appointment => (
-                    <div key={appointment.id_cita_medica} className="p-6">
-                      <div className="flex flex-col md:flex-row md:justify-between md:items-start">
-                        <div>
-                          <h3 className="font-medium text-gray-800">
-                            Dr. {appointment.personal_medico.persona.primer_apellido}
-                          </h3>
-                          <p className="text-sm text-gray-600">
-                            {appointment.personal_medico.especialidad.descripcion}
-                          </p>
+                upcomingAppointments.map(appointment => {
+                  const appointmentDate = getAppointmentDate(appointment);
+                  const appointmentTime = getAppointmentTime(appointment);
+                  const serviceType = getServiceType(appointment);
 
-                          <div className="mt-3 space-y-2">
-                            <div className="flex items-center text-sm">
-                              <CalendarIcon className="h-4 w-4 text-gray-500 mr-2" />
-                              <span>{formatDate(appointment.servicio_medico.fecha_servicio)}</span>
-                            </div>
-                            <div className="flex items-center text-sm">
-                              <Clock className="h-4 w-4 text-gray-500 mr-2" />
-                              <span>{formatTime(appointment.servicio_medico.hora_inicio_servicio)}</span>
-                            </div>
-                            <div className="flex items-center text-sm">
-                              <MapPin className="h-4 w-4 text-gray-500 mr-2" />
-                              <span>Consultorio {appointment.actividad}</span>
+                  return (
+                      <div key={appointment.id_cita_medica} className="p-6">
+                        <div className="flex flex-col md:flex-row md:justify-between md:items-start">
+                          <div>
+                            <h3 className="font-medium text-gray-800">
+                              Dr. {appointment.personal_medico.persona.primer_apellido}
+                            </h3>
+                            <p className="text-sm text-gray-600">
+                              {appointment.personal_medico.especialidad.descripcion}
+                            </p>
+
+                            <div className="mt-3 space-y-2">
+                              <div className="flex items-center text-sm">
+                                <CalendarIcon className="h-4 w-4 text-gray-500 mr-2" />
+                                <span>{formatDate(appointmentDate)}</span>
+                              </div>
+                              <div className="flex items-center text-sm">
+                                <Clock className="h-4 w-4 text-gray-500 mr-2" />
+                                <span>{formatTime(appointmentTime)}</span>
+                              </div>
+                              <div className="flex items-center text-sm">
+                                <FileText className="h-4 w-4 text-gray-500 mr-2" />
+                                <span>{serviceType.type} - {serviceType.subtype}</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="mt-4 md:mt-0 flex flex-col space-y-2">
-                          <button
-                              onClick={() => cancelAppointment(appointment.id_cita_medica)}
-                              className="px-4 py-2 bg-red-100 text-red-800 rounded-md hover:bg-red-200 transition-colors text-sm w-full md:w-auto"
-                          >
-                            Cancelar Cita
-                          </button>
-                          <button className="px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition-colors text-sm w-full md:w-auto">
-                            Reprogramar
-                          </button>
+                          <div className="mt-4 md:mt-0 flex flex-col space-y-2">
+                            <button
+                                onClick={() => cancelAppointment(appointment.id_cita_medica)}
+                                className="px-4 py-2 bg-red-100 text-red-800 rounded-md hover:bg-red-200 transition-colors text-sm w-full md:w-auto"
+                                disabled={appointment.estado === 'Cancelada'}
+                            >
+                              {appointment.estado === 'Cancelada' ? 'Cancelada' : 'Cancelar Cita'}
+                            </button>
+                            <button className="px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition-colors text-sm w-full md:w-auto">
+                              Reprogramar
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                ))
+                  );
+                })
             ) : (
                 <div className="p-6 text-center">
                   <CalendarIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
@@ -339,47 +439,58 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
               </div>
 
               <div className="divide-y divide-gray-200">
-                {pastAppointments.map(appointment => (
-                    <div key={appointment.id_cita_medica} className="p-6">
-                      <div className="flex flex-col md:flex-row md:justify-between md:items-start">
-                        <div>
-                          <h3 className="font-medium text-gray-800">
-                            Dr. {appointment.personal_medico.persona.primer_apellido}
-                          </h3>
-                          <p className="text-sm text-gray-600">
-                            {appointment.personal_medico.especialidad.descripcion}
-                          </p>
+                {pastAppointments.map(appointment => {
+                  const appointmentDate = getAppointmentDate(appointment);
+                  const appointmentTime = getAppointmentTime(appointment);
 
-                          <div className="mt-3 space-y-2">
-                            <div className="flex items-center text-sm">
-                              <CalendarIcon className="h-4 w-4 text-gray-500 mr-2" />
-                              <span>{formatDate(appointment.servicio_medico.fecha_servicio)}</span>
-                            </div>
-                            <div className="flex items-center text-sm">
-                              <Clock className="h-4 w-4 text-gray-500 mr-2" />
-                              <span>{formatTime(appointment.servicio_medico.hora_inicio_servicio)}</span>
-                            </div>
-                            <div className="flex items-center text-sm">
-                              <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                              <span className={`${
-                                  appointment.estado === 'completada'
-                                      ? 'text-green-600'
-                                      : 'text-red-600'
-                              }`}>
-                          {appointment.estado === 'completada' ? 'Completada' : 'Cancelada'}
-                        </span>
+                  return (
+                      <div key={appointment.id_cita_medica} className="p-6">
+                        <div className="flex flex-col md:flex-row md:justify-between md:items-start">
+                          <div>
+                            <h3 className="font-medium text-gray-800">
+                              Dr. {appointment.personal_medico.persona.primer_apellido}
+                            </h3>
+                            <p className="text-sm text-gray-600">
+                              {appointment.personal_medico.especialidad.descripcion}
+                            </p>
+
+                            <div className="mt-3 space-y-2">
+                              <div className="flex items-center text-sm">
+                                <CalendarIcon className="h-4 w-4 text-gray-500 mr-2" />
+                                <span>{formatDate(appointmentDate)}</span>
+                              </div>
+                              <div className="flex items-center text-sm">
+                                <Clock className="h-4 w-4 text-gray-500 mr-2" />
+                                <span>{formatTime(appointmentTime)}</span>
+                              </div>
+                              <div className="flex items-center text-sm">
+                                <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                                <span className={`${
+                                    appointment.estado.toLowerCase() === 'completada'
+                                        ? 'text-green-600'
+                                        : 'text-red-600'
+                                }`}>
+                            {appointment.estado === 'Completada' ? 'Completada' : 'Cancelada'}
+                          </span>
+                              </div>
+                              {appointment.servicio_medico?.consulta_medica && (
+                                  <div className="flex items-center text-sm">
+                                    <FileText className="h-4 w-4 text-gray-500 mr-2" />
+                                    <span>{appointment.servicio_medico.consulta_medica.tipo_servicio.nombre}</span>
+                                  </div>
+                              )}
                             </div>
                           </div>
-                        </div>
 
-                        <div className="mt-4 md:mt-0">
-                          <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm">
-                            Ver Detalles
-                          </button>
+                          <div className="mt-4 md:mt-0">
+                            <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm">
+                              Ver Detalles
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
         )}
@@ -507,14 +618,27 @@ const CreateAppointment: React.FC<{ onCancel: () => void, onSuccess: () => void 
         try {
           setLoading(prev => ({ ...prev, specialties: true }));
 
-          const { data, error } = await supabase
-              .from('especialidad')
-              .select('id_especialidad, descripcion')
-              .order('descripcion', { ascending: true });
+          // Primero obtenemos los subtipos de servicio que pertenecen a "Consulta Médica"
+          const { data: serviciosData, error: serviciosError } = await supabase
+              .from('tipo_servicio')
+              .select(`
+              nombre,
+              subtipo_servicio!inner(
+                id_subtipo_servicio,
+                nombre
+              )
+            `)
+              .eq('nombre', 'Consulta Médica');
 
-          if (error) throw error;
+          if (serviciosError) throw serviciosError;
 
-          setSpecialties(data || []);
+          // Extraemos los nombres de los subtipos de servicio
+          const specialties = serviciosData?.[0]?.subtipo_servicio?.map(st => ({
+            id_especialidad: st.id_subtipo_servicio,
+            descripcion: st.nombre
+          })) || [];
+
+          setSpecialties(specialties);
         } catch (err) {
           console.error('Error fetching specialties:', err);
           setError('Error al cargar las especialidades médicas');
@@ -655,56 +779,44 @@ const CreateAppointment: React.FC<{ onCancel: () => void, onSuccess: () => void 
       if (ampm === 'AM' && hour === 12) hour = 0;
       const timeString = `${hour.toString().padStart(2, '0')}:${minutes}:00`;
 
+      // Crear fecha-hora combinada
+      const dateTimeString = `${selectedDate.toISOString().split('T')[0]}T${timeString}`;
+
       // Crear la cita médica
       const { data: appointment, error: appointmentError } = await supabase
           .from('cita_medica')
           .insert({
             id_paciente: selectedProfile,
             id_personal_medico: selectedDoctor.id_personal_medico,
-            estado: 'programada',
-            actividad: 'Consulta general',
-            fecha_hora_registro: new Date().toISOString()
+            estado: 'Programada',
+            fecha_hora_programada: dateTimeString
           })
           .select()
           .single();
 
       if (appointmentError || !appointment) throw appointmentError || new Error('No se pudo crear la cita');
 
-      // Crear el servicio médico asociado
-      const { error: serviceError } = await supabase
-          .from('servicio_medico')
-          .insert({
-            id_cita_medica: appointment.id_cita_medica,
-            fecha_servicio: selectedDate.toISOString().split('T')[0],
-            hora_inicio_servicio: timeString,
-            hora_fin_servicio: `${(hour + 1).toString().padStart(2, '0')}:${minutes}:00`
-          });
-
-      if (serviceError) throw serviceError;
-
       // Si hay una orden médica seleccionada, vincularla
       if (selectedOrder) {
         const { error: orderError } = await supabase
-            .from('cita_atencion_orden')
+            .from('cita_con_orden')
             .insert({
               id_orden: selectedOrder.id_orden,
               id_cita_medica: appointment.id_cita_medica
             });
 
         if (orderError) throw orderError;
+      } else {
+        // Si es cita sin orden, usar el subtipo de servicio de la especialidad
+        const { error: noOrderError } = await supabase
+            .from('cita_sin_orden')
+            .insert({
+              id_cita_medica: appointment.id_cita_medica,
+              id_subtipo_servicio: selectedSpecialty?.id_especialidad
+            });
+
+        if (noOrderError) throw noOrderError;
       }
-
-      // Crear el tipo de servicio correspondiente (consulta médica)
-      const { error: consultError } = await supabase
-          .from('consulta_medica')
-          .insert({
-            id_servicio_medico: appointment.id_cita_medica,
-            motivo_consulta: selectedOrder?.motivo || 'Consulta programada',
-            id_tipo_servicio: selectedOrder?.id_tipo_servicio || 1, // 1 = Consulta
-            id_subtipo_servicio: selectedOrder?.id_subtipo_servicio || 1 // 1 = General
-          });
-
-      if (consultError) throw consultError;
 
       onSuccess();
     } catch (err) {
