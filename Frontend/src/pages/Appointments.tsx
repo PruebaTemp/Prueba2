@@ -43,12 +43,6 @@ type Appointment = {
     fecha_servicio: string;
     hora_inicio_servicio: string;
     hora_fin_servicio: string;
-    consulta_medica?: {
-      id_tipo_servicio: number;
-      tipo_servicio: {
-        nombre: string;
-      };
-    };
   };
   cita_con_orden?: {
     orden_medica: {
@@ -206,11 +200,7 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
               servicio_medico: servicio_medico (
                 fecha_servicio,
                 hora_inicio_servicio,
-                hora_fin_servicio,
-                consulta_medica: consulta_medica (
-                  id_tipo_servicio,
-                  tipo_servicio: id_tipo_servicio (nombre)
-                )
+                hora_fin_servicio
               ),
               cita_con_orden: cita_con_orden (
                 orden_medica: id_orden (
@@ -290,6 +280,7 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
 
     const now = new Date();
     const appointmentDate = new Date(appointment.fecha_hora_programada);
+
     return appointmentDate > now;
   };
 
@@ -352,11 +343,9 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
     );
   }
 
-  console.log(appointments)
   // Filtrar citas usando la lógica mejorada
   const upcomingAppointments = appointments.filter(isFutureAppointment);
   const pastAppointments = appointments.filter(a => !isFutureAppointment(a));
-  console.log(upcomingAppointments)
 
   return (
       <div className="space-y-8">
@@ -378,7 +367,7 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
                         <div className="flex flex-col md:flex-row md:justify-between md:items-start">
                           <div>
                             <h3 className="font-medium text-gray-800">
-                              Dr. {appointment.personal_medico.persona.primer_apellido}
+                              Dr. {appointment.personal_medico.persona.prenombres.split(' ')[0]} {appointment.personal_medico.persona.primer_apellido}
                             </h3>
                             <p className="text-sm text-gray-600">
                               {appointment.personal_medico.especialidad.descripcion}
@@ -442,13 +431,14 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
                 {pastAppointments.map(appointment => {
                   const appointmentDate = getAppointmentDate(appointment);
                   const appointmentTime = getAppointmentTime(appointment);
+                  const serviceType = getServiceType(appointment);
 
                   return (
                       <div key={appointment.id_cita_medica} className="p-6">
                         <div className="flex flex-col md:flex-row md:justify-between md:items-start">
                           <div>
                             <h3 className="font-medium text-gray-800">
-                              Dr. {appointment.personal_medico.persona.primer_apellido}
+                              Dr. {appointment.personal_medico.persona.prenombres.split(' ')[0]} {appointment.personal_medico.persona.primer_apellido}
                             </h3>
                             <p className="text-sm text-gray-600">
                               {appointment.personal_medico.especialidad.descripcion}
@@ -473,12 +463,10 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
                             {appointment.estado === 'Completada' ? 'Completada' : 'Cancelada'}
                           </span>
                               </div>
-                              {appointment.servicio_medico?.consulta_medica && (
-                                  <div className="flex items-center text-sm">
-                                    <FileText className="h-4 w-4 text-gray-500 mr-2" />
-                                    <span>{appointment.servicio_medico.consulta_medica.tipo_servicio.nombre}</span>
-                                  </div>
-                              )}
+                              <div className="flex items-center text-sm">
+                                <FileText className="h-4 w-4 text-gray-500 mr-2" />
+                                <span>{serviceType.type} - {serviceType.subtype}</span>
+                              </div>
                             </div>
                           </div>
 
