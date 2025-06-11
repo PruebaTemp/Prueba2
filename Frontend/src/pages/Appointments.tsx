@@ -10,10 +10,15 @@ import {
   CheckCircle,
   Plus,
   FileText,
-  Loader2
+  Loader2,
+  AlertTriangle
 } from 'lucide-react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
+import Modal from 'react-modal';
+
+// Configurar el modal para la aplicación
+Modal.setAppElement('#root');
 
 type Appointment = {
   id_cita_medica: number;
@@ -73,21 +78,29 @@ type Profile = {
     primer_apellido: string;
     segundo_apellido: string;
   };
+  isCurrentUser: boolean;
 };
 
 type MedicalOrder = {
   id_orden: number;
   motivo: string;
   observaciones: string;
-  id_tipo_servicio: number;
-  tipo_servicio: {
-    nombre: string;
-  };
   id_subtipo_servicio: number;
   subtipo_servicio: {
     nombre: string;
+    id_tipo_servicio: number;
+    tipo_servicio: {
+      nombre: string;
+    };
   };
-  fecha_creacion: string;
+  servicio_medico: {
+    fecha_servicio: string;
+    cita_medica: {
+      paciente: {
+        id_paciente: number;
+      };
+    };
+  };
 };
 
 type Specialty = {
@@ -113,6 +126,7 @@ type Doctor = {
 const Appointments: React.FC = () => {
   const { user } = useUser();
   const [view, setView] = useState<'list' | 'create'>('list');
+  const [selectedProfile, setSelectedProfile] = useState<number | null>(null);
 
   if (!user || user.currentRole !== 'patient') {
     return (
@@ -144,80 +158,171 @@ const Appointments: React.FC = () => {
         </div>
 
         {view === 'list'
-            ? <PatientAppointmentsList onCreateNew={() => setView('create')} />
-            : <CreateAppointment onCancel={() => setView('list')} onSuccess={() => setView('list')} />}
+            ? <PatientAppointmentsList
+                onCreateNew={() => setView('create')}
+                selectedProfile={selectedProfile}
+                setSelectedProfile={setSelectedProfile}
+            />
+            : <CreateAppointment
+                onCancel={() => setView('list')}
+                onSuccess={() => setView('list')}
+                selectedProfile={selectedProfile}
+            />}
       </div>
   );
 };
 
-const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCreateNew }) => {
+const PatientAppointmentsList: React.FC<{
+  onCreateNew: () => void,
+  selectedProfile: number | null,
+  setSelectedProfile: (id: number) => void
+}> = ({ onCreateNew, selectedProfile, setSelectedProfile }) => {
   const { user } = useUser();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [showProfileSelection, setShowProfileSelection] = useState(false);
+  const [appointmentToCancel, setAppointmentToCancel] = useState<number | null>(null);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
 
+  // Obtener perfiles de pacientes asociados al usuario
   useEffect(() => {
-    const fetchAppointments = async () => {
+    const fetchProfiles = async () => {
       try {
         setLoading(true);
 
-        // Obtener el ID del paciente asociado al usuario
-        const { data: pacienteData, error: pacienteError } = await supabase
-            .from('paciente')
-            .select('id_paciente')
+        // 1. Obtener datos del perfil principal
+        const { data: mainPersona, error: personaError } = await supabase
+            .from('persona')
+            .select('prenombres, primer_apellido, segundo_apellido')
             .eq('id_persona', user?.currentProfileId)
             .single();
 
-        if (pacienteError || !pacienteData) {
-          throw pacienteError || new Error('No se encontró el paciente');
-        }
+        if (personaError) throw personaError;
 
-        // Consulta mejorada para obtener citas con servicio médico si existe
+        const { data: mainPaciente, error: pacienteError } = await supabase
+            .from('paciente')
+            .select('id_paciente, id_persona, id_historia')
+            .eq('id_persona', user?.currentProfileId)
+            .single();
+
+        if (pacienteError) throw pacienteError;
+
+        const mainProfile = {
+          ...mainPaciente,
+          persona: mainPersona,
+          isCurrentUser: true
+        };
+
+        // 2. Obtener perfiles de dependientes
+        const { data: relaciones, error: relacionesError } = await supabase
+            .from('relacion_personas')
+            .select('id_persona_2')
+            .eq('id_persona_1', user?.currentProfileId)
+            .eq('id_tipo_relacion', 1);
+
+        if (relacionesError) throw relacionesError;
+
+        const relatedProfiles = await Promise.all(
+            relaciones.map(async (relacion) => {
+              const { data: dependientePersona, error: dpError } = await supabase
+                  .from('persona')
+                  .select('prenombres, primer_apellido, segundo_apellido')
+                  .eq('id_persona', relacion.id_persona_2)
+                  .single();
+
+              if (dpError) throw dpError;
+
+              const { data: dependientePaciente, error: dPacError } = await supabase
+                  .from('paciente')
+                  .select('id_paciente, id_persona, id_historia')
+                  .eq('id_persona', relacion.id_persona_2)
+                  .single();
+
+              if (dPacError) throw dPacError;
+
+              return {
+                ...dependientePaciente,
+                persona: dependientePersona,
+                isCurrentUser: false
+              };
+            })
+        );
+
+        const allProfiles = [mainProfile, ...relatedProfiles];
+        setProfiles(allProfiles);
+
+        if (allProfiles.length === 1) {
+          setSelectedProfile(allProfiles[0].id_paciente);
+        } else if (!selectedProfile) {
+          setShowProfileSelection(true);
+        }
+      } catch (err) {
+        console.error('Error fetching profiles:', err);
+        setError('Error al cargar los perfiles de pacientes');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user?.currentProfileId) {
+      fetchProfiles();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const fetchAppointments = async () => {
+      if (!selectedProfile) return;
+
+      try {
+        setLoading(true);
+
         const { data, error } = await supabase
             .from('cita_medica')
             .select(`
-              id_cita_medica,
-              id_paciente,
-              id_personal_medico,
-              estado,
-              fecha_hora_programada,
-              fecha_hora_registro,
-              paciente: id_paciente (
-                persona: id_persona (
-                  prenombres,
-                  primer_apellido,
-                  segundo_apellido
-                )
+            id_cita_medica,
+            id_paciente,
+            id_personal_medico,
+            estado,
+            fecha_hora_programada,
+            fecha_hora_registro,
+            paciente: id_paciente (
+              persona: id_persona (
+                prenombres,
+                primer_apellido,
+                segundo_apellido
+              )
+            ),
+            personal_medico: id_personal_medico (
+              persona: id_persona (
+                prenombres,
+                primer_apellido,
+                segundo_apellido
               ),
-              personal_medico: id_personal_medico (
-                persona: id_persona (
-                  prenombres,
-                  primer_apellido,
-                  segundo_apellido
-                ),
-                especialidad: id_especialidad (descripcion)
-              ),
-              servicio_medico: servicio_medico (
-                fecha_servicio,
-                hora_inicio_servicio,
-                hora_fin_servicio
-              ),
-              cita_con_orden: cita_con_orden (
-                orden_medica: id_orden (
-                  subtipo_servicio: id_subtipo_servicio (
-                    nombre,
-                    tipo_servicio: id_tipo_servicio (nombre)
-                  )
-                )
-              ),
-              cita_sin_orden: cita_sin_orden (
+              especialidad: id_especialidad (descripcion)
+            ),
+            servicio_medico: servicio_medico (
+              fecha_servicio,
+              hora_inicio_servicio,
+              hora_fin_servicio
+            ),
+            cita_con_orden: cita_con_orden (
+              orden_medica: id_orden (
                 subtipo_servicio: id_subtipo_servicio (
                   nombre,
                   tipo_servicio: id_tipo_servicio (nombre)
                 )
               )
-            `)
-            .eq('id_paciente', pacienteData.id_paciente)
+            ),
+            cita_sin_orden: cita_sin_orden (
+              subtipo_servicio: id_subtipo_servicio (
+                nombre,
+                  tipo_servicio: id_tipo_servicio (nombre)
+              )
+            )
+          `)
+            .eq('id_paciente', selectedProfile)
             .order('fecha_hora_programada', { ascending: false });
 
         if (error) throw error;
@@ -232,7 +337,7 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
     };
 
     fetchAppointments();
-  }, [user]);
+  }, [selectedProfile]);
 
   const getServiceType = (appointment: Appointment) => {
     if (appointment.cita_con_orden) {
@@ -250,29 +355,41 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
     return { type: 'Consulta general', subtype: 'Consulta general' };
   };
 
-  const cancelAppointment = async (appointmentId: number) => {
+  const openCancelModal = (appointmentId: number) => {
+    setAppointmentToCancel(appointmentId);
+    setIsCancelModalOpen(true);
+  };
+
+  const closeCancelModal = () => {
+    setIsCancelModalOpen(false);
+    setAppointmentToCancel(null);
+  };
+
+  const confirmCancelAppointment = async () => {
+    if (!appointmentToCancel) return;
+
     try {
       const { error } = await supabase
           .from('cita_medica')
           .update({ estado: 'Cancelada' })
-          .eq('id_cita_medica', appointmentId);
+          .eq('id_cita_medica', appointmentToCancel);
 
       if (error) throw error;
 
       setAppointments(prev =>
           prev.map(a =>
-              a.id_cita_medica === appointmentId
+              a.id_cita_medica === appointmentToCancel
                   ? { ...a, estado: 'Cancelada' }
                   : a
           )
       );
+      closeCancelModal();
     } catch (err) {
       console.error('Error canceling appointment:', err);
       alert('No se pudo cancelar la cita');
     }
   };
 
-  // Función para determinar si una cita es futura
   const isFutureAppointment = (appointment: Appointment) => {
     if (appointment.estado === 'Completada' || appointment.estado === 'Cancelada') {
       return false;
@@ -284,7 +401,6 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
     return appointmentDate > now;
   };
 
-  // Función para obtener la fecha de la cita (programada o de servicio)
   const getAppointmentDate = (appointment: Appointment) => {
     if (appointment.estado === 'Completada' && appointment.servicio_medico?.length > 0) {
       return new Date(appointment.servicio_medico[0].fecha_servicio);
@@ -292,10 +408,8 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
     return new Date(appointment.fecha_hora_programada);
   };
 
-// Función para obtener la hora de la cita (programada o de servicio)
   const getAppointmentTime = (appointment: Appointment) => {
     if (appointment.estado === 'Completada' && appointment.servicio_medico?.length > 0) {
-      // Extraemos solo la parte de la hora (HH:MM) del string HH:MM:SS
       return appointment.servicio_medico[0].hora_inicio_servicio.substring(0, 5);
     }
 
@@ -306,7 +420,6 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
     });
   };
 
-  // Formatear fecha en español
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('es-ES', {
       day: 'numeric',
@@ -315,16 +428,56 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
     });
   };
 
-  // Formatear hora en formato 12h
   const formatTime = (timeString: string) => {
-    // Si ya es un string formateado (de servicio médico)
     if (timeString.includes(':')) {
       const [hours, minutes] = timeString.split(':');
       const hour = parseInt(hours, 10);
       return `${hour > 12 ? hour - 12 : hour}:${minutes} ${hour >= 12 ? 'PM' : 'AM'}`;
     }
-    return timeString; // Por si acaso ya está formateado
+    return timeString;
   };
+
+  if (showProfileSelection) {
+    return (
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <h2 className="text-lg font-medium text-gray-800 mb-6">Seleccione el Paciente</h2>
+          {loading ? (
+              <div className="flex justify-center items-center h-32">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+              </div>
+          ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {profiles.map(profile => (
+                    <button
+                        key={profile.id_paciente}
+                        onClick={() => {
+                          setSelectedProfile(profile.id_paciente);
+                          setShowProfileSelection(false);
+                        }}
+                        className={`p-4 border rounded-md text-left transition-colors ${
+                            selectedProfile === profile.id_paciente
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'hover:bg-gray-50'
+                        }`}
+                    >
+                      <div className="flex items-center">
+                        <User className="h-5 w-5 text-gray-400 mr-2" />
+                        <div>
+                          <p className="font-medium">
+                            {profile.persona.prenombres} {profile.persona.primer_apellido}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {profile.isCurrentUser ? 'Titular' : 'Dependiente'}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                ))}
+              </div>
+          )}
+        </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -343,16 +496,62 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
     );
   }
 
-  // Filtrar citas usando la lógica mejorada
+  // Modal de confirmación para cancelar cita
+  const CancelConfirmationModal = () => (
+      <Modal
+          isOpen={isCancelModalOpen}
+          onRequestClose={closeCancelModal}
+          className="modal"
+          overlayClassName="modal-overlay"
+          contentLabel="Confirmar Cancelación"
+      >
+        <div className="bg-white rounded-lg p-6 max-w-md mx-auto">
+          <div className="flex items-center mb-4">
+            <AlertTriangle className="h-6 w-6 text-yellow-500 mr-2" />
+            <h3 className="text-lg font-medium">Confirmar Cancelación</h3>
+          </div>
+          <p className="text-gray-600 mb-6">
+            ¿Está seguro que desea cancelar esta cita? Esta acción no se puede deshacer.
+          </p>
+          <div className="flex justify-end space-x-3">
+            <button
+                onClick={closeCancelModal}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+            >
+              Volver
+            </button>
+            <button
+                onClick={confirmCancelAppointment}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+            >
+              Confirmar Cancelación
+            </button>
+          </div>
+        </div>
+      </Modal>
+  );
+
   const upcomingAppointments = appointments.filter(isFutureAppointment);
   const pastAppointments = appointments.filter(a => !isFutureAppointment(a));
 
   return (
       <div className="space-y-8">
+        <CancelConfirmationModal />
+
         {/* Próximas Citas */}
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           <div className="p-6 border-b border-gray-200">
-            <h2 className="text-lg font-medium text-gray-800">Próximas Citas</h2>
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-medium text-gray-800">Próximas Citas</h2>
+              {profiles.length > 1 && (
+                  <button
+                      onClick={() => setShowProfileSelection(true)}
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                  >
+                    Cambiar perfil
+                  </button>
+              )}
+            </div>
           </div>
 
           <div className="divide-y divide-gray-200">
@@ -389,16 +588,13 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
                             </div>
                           </div>
 
-                          <div className="mt-4 md:mt-0 flex flex-col space-y-2">
+                          <div className="mt-4 md:mt-0">
                             <button
-                                onClick={() => cancelAppointment(appointment.id_cita_medica)}
+                                onClick={() => openCancelModal(appointment.id_cita_medica)}
                                 className="px-4 py-2 bg-red-100 text-red-800 rounded-md hover:bg-red-200 transition-colors text-sm w-full md:w-auto"
                                 disabled={appointment.estado === 'Cancelada'}
                             >
                               {appointment.estado === 'Cancelada' ? 'Cancelada' : 'Cancelar Cita'}
-                            </button>
-                            <button className="px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition-colors text-sm w-full md:w-auto">
-                              Reprogramar
                             </button>
                           </div>
                         </div>
@@ -424,7 +620,17 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
         {pastAppointments.length > 0 && (
             <div className="bg-white rounded-lg shadow-sm overflow-hidden">
               <div className="p-6 border-b border-gray-200">
-                <h2 className="text-lg font-medium text-gray-800">Historial de Citas</h2>
+                <div className="flex justify-between items-center">
+                  <h2 className="text-lg font-medium text-gray-800">Historial de Citas</h2>
+                  {profiles.length > 1 && (
+                      <button
+                          onClick={() => setShowProfileSelection(true)}
+                          className="text-sm text-blue-600 hover:text-blue-800"
+                      >
+                        Cambiar perfil
+                      </button>
+                  )}
+                </div>
               </div>
 
               <div className="divide-y divide-gray-200">
@@ -469,12 +675,6 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
                               </div>
                             </div>
                           </div>
-
-                          <div className="mt-4 md:mt-0">
-                            <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm">
-                              Ver Detalles
-                            </button>
-                          </div>
                         </div>
                       </div>
                   );
@@ -486,118 +686,109 @@ const PatientAppointmentsList: React.FC<{ onCreateNew: () => void }> = ({ onCrea
   );
 };
 
-const CreateAppointment: React.FC<{ onCancel: () => void, onSuccess: () => void }> = ({ onCancel, onSuccess }) => {
-  const { user } = useUser();
-  const [step, setStep] = useState<'profile' | 'order' | 'specialty' | 'doctor' | 'datetime'>('profile');
-  const [selectedProfile, setSelectedProfile] = useState<number | null>(null);
+const CreateAppointment: React.FC<{
+  onCancel: () => void,
+  onSuccess: () => void,
+  selectedProfile: number | null
+}> = ({ onCancel, onSuccess, selectedProfile }) => {
+  const [step, setStep] = useState<'order' | 'specialty' | 'doctor' | 'datetime'>('order');
   const [selectedOrder, setSelectedOrder] = useState<MedicalOrder | null>(null);
   const [selectedSpecialty, setSelectedSpecialty] = useState<Specialty | null>(null);
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string>('');
-
-  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [orders, setOrders] = useState<MedicalOrder[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
   const [loading, setLoading] = useState<{[key: string]: boolean}>({});
   const [error, setError] = useState<string | null>(null);
+  const [currentProfile, setCurrentProfile] = useState<{
+    persona: {
+      prenombres: string;
+      primer_apellido: string;
+      segundo_apellido: string;
+    };
+  } | null>(null);
 
-  // Obtener perfiles de pacientes asociados al usuario
   useEffect(() => {
-    const fetchProfiles = async () => {
-      try {
-        setLoading(prev => ({ ...prev, profiles: true }));
+    const fetchProfile = async () => {
+      if (!selectedProfile) return;
 
-        // Obtener el perfil principal del usuario
-        const { data: mainProfile, error: mainError } = await supabase
+      try {
+        // 1. Obtener el id_persona del paciente
+        const { data: paciente, error: pacienteError } = await supabase
             .from('paciente')
-            .select(`
-            id_paciente,
-            id_persona,
-            id_historia,
-            persona: id_persona (prenombres, primer_apellido, segundo_apellido)
-          `)
-            .eq('id_persona', user?.currentProfileId)
+            .select('id_persona')
+            .eq('id_paciente', selectedProfile)
             .single();
 
-        if (mainError) throw mainError;
+        if (pacienteError) throw pacienteError;
 
-        // Obtener perfiles de dependientes (relacionados)
-        const { data: relatedProfiles, error: relatedError } = await supabase
-            .from('relacion_personas')
-            .select(`
-            id_persona_2,
-            paciente: id_persona_2 (
-              id_paciente,
-              id_persona,
-              id_historia,
-              persona: id_persona (prenombres, primer_apellido, segundo_apellido)
-            )
-          `)
-            .eq('id_persona_1', user?.currentProfileId)
-            .eq('id_tipo_relacion', 1); // 1 = relación de dependencia
+        // 2. Obtener los datos de la persona
+        const { data: persona, error: personaError } = await supabase
+            .from('persona')
+            .select('prenombres, primer_apellido, segundo_apellido')
+            .eq('id_persona', paciente.id_persona)
+            .single();
 
-        if (relatedError) throw relatedError;
+        if (personaError) throw personaError;
 
-        const allProfiles = [
-          { ...mainProfile, isCurrentUser: true },
-          ...(relatedProfiles?.map(r => ({ ...r.paciente, isCurrentUser: false })) || [])
-        ];
-
-        setProfiles(allProfiles);
-        if (allProfiles.length === 1) {
-          setSelectedProfile(allProfiles[0].id_paciente);
-          setStep('order');
-        }
+        setCurrentProfile({ persona });
       } catch (err) {
-        console.error('Error fetching profiles:', err);
-        setError('Error al cargar los perfiles de pacientes');
-      } finally {
-        setLoading(prev => ({ ...prev, profiles: false }));
+        console.error('Error al cargar el perfil:', err);
       }
     };
 
-    fetchProfiles();
-  }, [user]);
+    fetchProfile();
+  }, [selectedProfile]);
 
   // Obtener órdenes médicas cuando se selecciona un perfil
   useEffect(() => {
-    if (step === 'order' && selectedProfile) {
-      const fetchOrders = async () => {
-        try {
-          setLoading(prev => ({ ...prev, orders: true }));
+    const fetchOrders = async () => {
+      if (!selectedProfile) return;
 
-          const { data, error } = await supabase
-              .from('orden_medica')
-              .select(`
+      try {
+        setLoading(prev => ({ ...prev, orders: true }));
+
+        const { data, error } = await supabase
+            .from('orden_medica')
+            .select(`
               id_orden,
               motivo,
               observaciones,
-              id_tipo_servicio,
-              tipo_servicio: id_tipo_servicio (nombre),
               id_subtipo_servicio,
-              subtipo_servicio: id_subtipo_servicio (nombre),
-              fecha_creacion
+              subtipo_servicio: id_subtipo_servicio (
+                nombre,
+                id_tipo_servicio,
+                tipo_servicio: id_tipo_servicio (nombre)
+              ),
+              servicio_medico (
+                fecha_servicio,
+                cita_medica (
+                  paciente (
+                    id_paciente
+                  )
+                )
+              )
             `)
-              .eq('id_paciente', selectedProfile)
-              .eq('estado', 'pendiente');
+            .eq('servicio_medico.cita_medica.paciente.id_paciente', selectedProfile)
+            .eq('estado', 'pendiente');
 
-          if (error) throw error;
 
-          setOrders(data || []);
-        } catch (err) {
-          console.error('Error fetching orders:', err);
-          setError('Error al cargar las órdenes médicas');
-        } finally {
-          setLoading(prev => ({ ...prev, orders: false }));
-        }
-      };
+        if (error) throw error;
 
-      fetchOrders();
-    }
-  }, [step, selectedProfile]);
+        setOrders(data || []);
+      } catch (err) {
+        console.error('Error fetching orders:', err);
+        setError('Error al cargar las órdenes médicas');
+      } finally {
+        setLoading(prev => ({ ...prev, orders: false }));
+      }
+    };
+
+    fetchOrders();
+  }, [selectedProfile]);
 
   // Obtener especialidades cuando se avanza al paso correspondiente
   useEffect(() => {
@@ -832,47 +1023,6 @@ const CreateAppointment: React.FC<{ onCancel: () => void, onSuccess: () => void 
     }
 
     switch (step) {
-      case 'profile':
-        return (
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-lg font-medium text-gray-800 mb-6">Seleccione el Paciente</h2>
-              {loading.profiles ? (
-                  <div className="flex justify-center items-center h-32">
-                    <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-                  </div>
-              ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {user?.profiles.map(profile => (
-                        <button
-                            key={profile.id}
-                            onClick={() => {
-                              setSelectedProfile(profile.id);
-                              setStep('order');
-                            }}
-                            className={`p-4 border rounded-md text-left transition-colors ${
-                                selectedProfile === profile.id
-                                    ? 'border-blue-500 bg-blue-50'
-                                    : 'hover:bg-gray-50'
-                            }`}
-                        >
-                          <div className="flex items-center">
-                            <User className="h-5 w-5 text-gray-400 mr-2" />
-                            <div>
-                              <p className="font-medium">
-                                {profile.name}
-                              </p>
-                              <p className="text-sm text-gray-500">
-                                {profile.id === user?.currentProfileId ? 'Titular' : 'Dependiente'}
-                              </p>
-                            </div>
-                          </div>
-                        </button>
-                    ))}
-                  </div>
-              )}
-            </div>
-        );
-
       case 'order':
         return (
             <div className="bg-white rounded-lg shadow-sm p-6">
@@ -908,10 +1058,10 @@ const CreateAppointment: React.FC<{ onCancel: () => void, onSuccess: () => void 
                                 <h3 className="font-medium text-gray-800">{order.motivo}</h3>
                               </div>
                               <p className="text-sm text-gray-500 mt-1">
-                                Tipo: {order.tipo_servicio.nombre} - {order.subtipo_servicio.nombre}
+                                Tipo: {order.subtipo_servicio.tipo_servicio.nombre} - {order.subtipo_servicio.nombre}
                               </p>
                               <p className="text-sm text-gray-500">
-                                Fecha: {new Date(order.fecha_creacion).toLocaleDateString()}
+                                Fecha: {new Date(order.servicio_medico?.fecha_servicio).toLocaleDateString()}
                               </p>
                             </div>
                             <span className="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
@@ -982,7 +1132,7 @@ const CreateAppointment: React.FC<{ onCancel: () => void, onSuccess: () => void 
                   ← Volver
                 </button>
                 <h2 className="text-lg font-medium text-gray-800">
-                  Seleccione Médico - {selectedOrder ? selectedOrder.tipo_servicio.nombre : selectedSpecialty?.descripcion}
+                  Seleccione Médico - {selectedOrder ? selectedOrder.subtipo_servicio.tipo_servicio.nombre : selectedSpecialty?.descripcion}
                 </h2>
               </div>
               {loading.doctors ? (
@@ -1011,7 +1161,7 @@ const CreateAppointment: React.FC<{ onCancel: () => void, onSuccess: () => void 
                             <User className="h-5 w-5 text-gray-400 mr-2" />
                             <div>
                               <p className="font-medium">
-                                Dr. {doctor.persona.primer_apellido}
+                                Dr. {doctor.persona.prenombres.split(' ')[0]} {doctor.persona.primer_apellido}
                               </p>
                               <p className="text-sm text-gray-500">
                                 {doctor.especialidad.descripcion}
@@ -1092,7 +1242,7 @@ const CreateAppointment: React.FC<{ onCancel: () => void, onSuccess: () => void 
                                     <div className="space-y-2 text-sm">
                                       <p>
                                         <span className="text-gray-500">Paciente:</span>{' '}
-                                        {profiles.find(p => p.id_paciente === selectedProfile)?.persona.prenombres}
+                                        {currentProfile?.persona.prenombres} {currentProfile?.persona.primer_apellido} {currentProfile?.persona.segundo_apellido}
                                       </p>
                                       {selectedOrder ? (
                                           <>
@@ -1102,7 +1252,7 @@ const CreateAppointment: React.FC<{ onCancel: () => void, onSuccess: () => void 
                                             </p>
                                             <p>
                                               <span className="text-gray-500">Tipo:</span>{' '}
-                                              {selectedOrder.tipo_servicio.nombre}
+                                              {selectedOrder.subtipo_servicio.tipo_servicio.nombre}
                                             </p>
                                           </>
                                       ) : (
@@ -1113,7 +1263,7 @@ const CreateAppointment: React.FC<{ onCancel: () => void, onSuccess: () => void 
                                       )}
                                       <p>
                                         <span className="text-gray-500">Médico:</span>{' '}
-                                        Dr. {selectedDoctor?.persona.primer_apellido}
+                                        Dr. {selectedDoctor?.persona.prenombres.split(' ')[0]} {selectedDoctor?.persona.primer_apellido}
                                       </p>
                                       <p>
                                         <span className="text-gray-500">Fecha:</span>{' '}
