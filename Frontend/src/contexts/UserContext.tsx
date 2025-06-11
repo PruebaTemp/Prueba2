@@ -21,7 +21,6 @@ export interface User {
   avatarUrl?: string;
   profiles: UserProfile[];
   currentProfileId: string;
-  // Información adicional del usuario
   dni?: string;
   telefono?: string;
   direccion?: string;
@@ -33,11 +32,13 @@ interface UserContextType {
   user: User | null;
   isAuthenticated: boolean;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  error: string | null;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   switchRole: (role: UserRole) => void;
   switchProfile: (profileId: string) => void;
   isRoleAllowed: (requiredRole: UserRole) => boolean;
+  clearError: () => void;
 }
 
 // Create context with default values
@@ -45,35 +46,38 @@ const UserContext = createContext<UserContextType>({
   user: null,
   isAuthenticated: false,
   loading: true,
-  login: async () => {},
+  error: null,
+  login: async () => false,
   logout: async () => {},
   switchRole: () => {},
   switchProfile: () => {},
   isRoleAllowed: () => false,
+  clearError: () => {}
 });
 
 export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const clearError = () => setError(null);
 
   // Función para obtener los roles del usuario
   const getUserRoles = async (idPersona: number): Promise<UserRole[]> => {
     try {
-      // Luego obtener los roles
       const { data: rolesData, error } = await supabase
-          .from('asignacion_rol')
-          .select(`
-        rol:id_rol (
-          nombre
-        )
-      `)
-          .eq('id_persona', idPersona);
+        .from('asignacion_rol')
+        .select(`
+          rol:id_rol (
+            nombre
+          )
+        `)
+        .eq('id_persona', idPersona);
 
       if (error) throw error;
 
       const roles: UserRole[] = [];
-      console.log(rolesData);
       rolesData?.forEach((roleAssignment: any) => {
         const roleName = roleAssignment.rol?.nombre;
         if (roleName === 'Paciente') roles.push('patient');
@@ -81,10 +85,15 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (roleName === 'Personal Médico' || roleName === 'personal_medico') roles.push('medical');
       });
 
-      return roles.length > 0 ? roles : ['patient'];
+      // Validar que tenga al menos un rol
+      if (roles.length === 0) {
+        throw new Error('El usuario no tiene roles asignados. Contacte al administrador.');
+      }
+
+      return roles;
     } catch (error) {
       console.error('Error obteniendo roles:', error);
-      return ['patient'];
+      throw error; // Re-lanzamos el error para manejarlo en el contexto superior
     }
   };
 
@@ -149,9 +158,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Función para construir el usuario desde los datos de Supabase
   const buildUserFromSupabase = async (authUser: any): Promise<User> => {
     try {
-      console.log('Construyendo usuario desde metadata:', authUser.user_metadata);
-
-      // Validación básica
       if (!authUser.user_metadata) {
         throw new Error('Metadatos de usuario no encontrados');
       }
@@ -162,42 +168,27 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('ID de persona no encontrado en metadata');
       }
 
-      console.log('Obteniendo datos de persona con ID:', id_persona);
-
       // 1. Obtener datos de persona
       const { data: personaData, error: personaError } = await supabase
-          .from('persona')
-          .select('*')
-          .eq('id_persona', id_persona)
-          .single();
+        .from('persona')
+        .select('*')
+        .eq('id_persona', id_persona)
+        .single();
 
-      if (personaError) {
-        console.error('Error al obtener persona:', personaError);
-        throw personaError;
-      }
+      if (personaError) throw personaError;
+      if (!personaData) throw new Error(`No se encontró persona con ID ${id_persona}`);
 
-      if (!personaData) {
-        throw new Error(`No se encontró persona con ID ${id_persona}`);
-      }
-
-      console.log('Datos de persona obtenidos:', personaData);
-
-      // 2. Obtener roles
-      console.log('Obteniendo roles para persona ID:', id_persona);
+      // 2. Obtener roles (puede lanzar error si no tiene roles)
       const roles = await getUserRoles(id_persona);
-      console.log('Roles obtenidos:', roles);
 
       // 3. Obtener perfiles
-      console.log('Obteniendo perfiles para persona ID:', id_persona);
       const profiles = await getUserProfiles(id_persona.toString());
-      console.log('Perfiles obtenidos:', profiles);
 
-      // Construir objeto de usuario
-      const userObj: User = {
+      return {
         id: authUser.id,
         name: `${personaData.prenombres || ''} ${personaData.primer_apellido || ''} ${personaData.segundo_apellido || ''}`.trim(),
         email: authUser.email || '',
-        currentRole: roles[0],
+        currentRole: roles[0], // Asignamos el primer rol disponible
         roles,
         profiles,
         currentProfileId: id_persona.toString(),
@@ -206,13 +197,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         direccion: personaData.direccion_legal,
         nombreUsuario: nombre_usuario || ''
       };
-
-      console.log('Usuario construido con éxito:', userObj);
-      return userObj;
-
     } catch (error) {
-      console.error('Error crítico en buildUserFromSupabase:', error);
-      throw new Error(`No se pudo construir el usuario: ${error instanceof Error ? error.message : String(error)}`);
+      console.error('Error en buildUserFromSupabase:', error);
+      throw error;
     }
   };
 
@@ -220,78 +207,82 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const getSession = async () => {
       try {
-        console.log('Verificando sesión existente...'); // Debug
+        setLoading(true);
         const { data: { session } } = await supabase.auth.getSession();
 
         if (session?.user) {
-          console.log('Sesión encontrada, construyendo usuario...'); // Debug
-          const userData = await buildUserFromSupabase(session.user);
-          setUser(userData);
-          setIsAuthenticated(true);
-          console.log('Sesión cargada correctamente'); // Debug
-        } else {
-          console.log('No se encontró sesión activa'); // Debug
+          try {
+            const userData = await buildUserFromSupabase(session.user);
+            setUser(userData);
+            setIsAuthenticated(true);
+            setError(null);
+          } catch (error) {
+            setError(error instanceof Error ? error.message : 'Error al cargar usuario');
+            await supabase.auth.signOut();
+          }
         }
       } catch (error) {
         console.error('Error obteniendo sesión:', error);
+        setError('Error al verificar la sesión');
       } finally {
         setLoading(false);
-        console.log('Verificación de sesión completada'); // Debug
       }
     };
 
     getSession();
 
     // Escuchar cambios en la autenticación
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        async (event, session) => {
-          console.log(`Evento de autenticación: ${event}`); // Debug
-          if (event === 'SIGNED_IN' && session?.user) {
-            try {
-              console.log('Usuario autenticado, construyendo usuario...'); // Debug
-              const userData = await buildUserFromSupabase(session.user);
-              setUser(userData);
-              setIsAuthenticated(true);
-              console.log('Usuario autenticado correctamente'); // Debug
-            } catch (error) {
-              console.error('Error en login:', error);
-              setUser(null);
-              setIsAuthenticated(false);
-            }
-          } else if (event === 'SIGNED_OUT') {
-            console.log('Usuario cerró sesión'); // Debug
-            setUser(null);
-            setIsAuthenticated(false);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      try {
+        setLoading(true);
+        if (event === 'SIGNED_IN' && session?.user) {
+          try {
+            const userData = await buildUserFromSupabase(session.user);
+            setUser(userData);
+            setIsAuthenticated(true);
+            setError(null);
+          } catch (error) {
+            setError(error instanceof Error ? error.message : 'Error al autenticar usuario');
+            await supabase.auth.signOut();
           }
-          setLoading(false);
-          console.log('Estado loading actualizado después de evento auth'); // Debug
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+          setIsAuthenticated(false);
+          setError(null);
         }
-    );
+      } catch (error) {
+        console.error('Error en auth state change:', error);
+        setError('Error en el proceso de autenticación');
+      } finally {
+        setLoading(false);
+      }
+    });
 
-    return () => {
-      console.log('Limpiando suscripción a cambios de autenticación'); // Debug
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<boolean> => {
     try {
       setLoading(true);
+      setError(null);
 
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
 
       if (data.user) {
-        const userData = await buildUserFromSupabase(data.user);
-
-        // Actualiza ambos estados al mismo tiempo
-        setUser(userData);
-        setIsAuthenticated(true);
-
-        return true; // Indica que el login fue exitoso
+        try {
+          const userData = await buildUserFromSupabase(data.user);
+          setUser(userData);
+          setIsAuthenticated(true);
+          return true;
+        } catch (buildError) {
+          await supabase.auth.signOut();
+          throw buildError;
+        }
       }
       return false;
     } catch (error: any) {
+      setError(error.message || 'Error al iniciar sesión');
       throw error;
     } finally {
       setLoading(false);
@@ -300,14 +291,18 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
+      setLoading(true);
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
 
       setUser(null);
       setIsAuthenticated(false);
+      setError(null);
     } catch (error) {
-      console.error('Error en logout:', error);
+      setError('Error al cerrar sesión');
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -327,24 +322,26 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const isRoleAllowed = (requiredRole: UserRole): boolean => {
-    return user?.currentRole === requiredRole;
+    return user?.roles.includes(requiredRole) || false;
   };
 
   return (
-      <UserContext.Provider
-          value={{
-            user,
-            isAuthenticated,
-            loading,
-            login,
-            logout,
-            switchRole,
-            switchProfile,
-            isRoleAllowed
-          }}
-      >
-        {children}
-      </UserContext.Provider>
+    <UserContext.Provider
+      value={{
+        user,
+        isAuthenticated,
+        loading,
+        error,
+        login,
+        logout,
+        switchRole,
+        switchProfile,
+        isRoleAllowed,
+        clearError
+      }}
+    >
+      {children}
+    </UserContext.Provider>
   );
 };
 
