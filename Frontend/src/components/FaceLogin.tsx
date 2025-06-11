@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as faceapi from 'face-api.js';
+import { supabase, SUPABASE_URL } from '../lib/supabase';
 
 type LabeledDescriptor = {
   label: string;
@@ -56,40 +57,46 @@ const FaceLogin: React.FC<Props> = ({ onSuccess, onCancel }) => {
 
   const handleLogin = async () => {
     if (!videoRef.current) return;
-
+  
     const detection = await faceapi
       .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
       .withFaceLandmarks()
       .withFaceDescriptor();
-
+  
     if (!detection) {
       setMessage('No se detectó ningún rostro.');
       return;
     }
-
-    const currentDescriptor = detection.descriptor;
-    const stored = localStorage.getItem('registeredFaces');
-    if (!stored) {
-      setMessage('No hay rostros registrados.');
-      return;
-    }
-
-    const registeredFaces: LabeledDescriptor[] = JSON.parse(stored);
-    const labeledDescriptors = registeredFaces.map(data => (
-      new faceapi.LabeledFaceDescriptors(data.label, [new Float32Array(data.descriptors)])
-    ));
-
-    const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors);
-    const bestMatch = faceMatcher.findBestMatch(currentDescriptor);
-
-    if (bestMatch.label !== 'unknown' && bestMatch.distance < 0.6) {
-      setMessage(`✅ Bienvenido, ${bestMatch.label}!`);
+  
+    const currentDescriptor = Array.from(detection.descriptor);
+  
+    try {
+      // Autenticar con Supabase
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/authenticate-face`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ descriptor: currentDescriptor })
+      });
+  
+      const data = await response.json();
+      
+      if (!response.ok) throw new Error(data.error || 'Error en autenticación');
+  
+      // Establecer sesión en el cliente Supabase
+      const { error } = await supabase.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      });
+  
+      if (error) throw error;
+  
+      setMessage(`✅ Bienvenido!`);
       setTimeout(() => {
-          stopVideo();
-          onSuccess(); // Notifica éxito después del delay
-        }, 2000);
-    } else {
-      setMessage('❌ Rostro no reconocido.');
+        stopVideo();
+        onSuccess();
+      }, 2000);
+    } catch (error) {
+      setMessage(`❌ Error: ${error.message}`);
     }
   };
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as faceapi from 'face-api.js';
+import { supabase } from '../lib/supabase';
 
 type Props = {
   username: string;
@@ -11,6 +12,7 @@ const RegisterFace: React.FC<Props> = ({ username, onSuccess, onCancel }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
   // Cargar modelos y encender cámara
   useEffect(() => {
@@ -25,7 +27,7 @@ const RegisterFace: React.FC<Props> = ({ username, onSuccess, onCancel }) => {
     };
     loadModels();
 
-    return () => stopVideo(); // ✅ apagar cámara al desmontar
+    return () => stopVideo();
   }, []);
 
   const startVideo = () => {
@@ -50,47 +52,48 @@ const RegisterFace: React.FC<Props> = ({ username, onSuccess, onCancel }) => {
 
   const handleRegister = async () => {
     setMessage('');
-    if (!username) {
-      setMessage('⚠️ El nombre de usuario es requerido.');
-      return;
+    setLoading(true);
+    
+    try {
+      if (!videoRef.current) {
+        throw new Error('Video no inicializado');
+      }
+
+      const detection = await faceapi
+        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      if (!detection) {
+        throw new Error('No se detectó ningún rostro. Intenta de nuevo.');
+      }
+
+      const descriptor = Array.from(detection.descriptor);
+
+      // Guardar descriptor en Supabase
+      const { error } = await supabase
+        .from('facial_descriptors')
+        .insert([{
+          user_id: username, // Usamos el email como ID
+          descriptor,
+          created_at: new Date().toISOString()
+        }]);
+
+      if (error) throw error;
+
+      setMessage('✅ Rostro registrado con éxito');
+      
+      if (onSuccess) {
+        setTimeout(() => {
+          stopVideo();
+          onSuccess();
+        }, 2000);
+      }
+    } catch (error) {
+      setMessage(`❌ Error: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
-
-    const detection = await faceapi
-      .detectSingleFace(videoRef.current!, new faceapi.TinyFaceDetectorOptions())
-      .withFaceLandmarks()
-      .withFaceDescriptor();
-
-    if (!detection) {
-      setMessage('❌ No se detectó ningún rostro. Intenta de nuevo.');
-      return;
-    }
-
-    const descriptor = detection.descriptor;
-
-    // Guardar rostro en localStorage
-    const stored = localStorage.getItem('registeredFaces');
-    const registered = stored ? JSON.parse(stored) : [];
-
-    registered.push({
-      label: username,
-      descriptors: Array.from(descriptor),
-    });
-
-    localStorage.setItem('registeredFaces', JSON.stringify(registered));
-    setMessage(`✅ Rostro de "${username}" registrado con éxito.`);
-
-    // Ejecutar onSuccess si viene del modal
-    if (onSuccess) {
-      setTimeout(() => {
-        stopVideo();
-        onSuccess();
-      }, 2000);
-    }
-  };
-
-  const handleCancel = () => {
-    stopVideo();
-    if (onCancel) onCancel();
   };
 
   return (
@@ -104,20 +107,32 @@ const RegisterFace: React.FC<Props> = ({ username, onSuccess, onCancel }) => {
           ref={videoRef}
           autoPlay
           muted
-          className="w-[640px] h-[480px] rounded-lg border border-gray-300 mx-auto"
+          className="w-full h-auto max-h-[480px] rounded-lg border border-gray-300 mx-auto"
         />
 
         <div className="mt-6 flex flex-col md:flex-row justify-center gap-4">
           <button
             onClick={handleRegister}
-            className="bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded shadow"
+            disabled={loading}
+            className="bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded shadow disabled:opacity-50 flex items-center justify-center"
           >
-            Registrar Rostro
+            {loading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Registrando...
+              </>
+            ) : (
+              'Registrar Rostro'
+            )}
           </button>
           {onCancel && (
             <button
-              onClick={handleCancel}
-              className="bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded shadow"
+              onClick={onCancel}
+              disabled={loading}
+              className="bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded shadow disabled:opacity-50"
             >
               Cancelar
             </button>
@@ -125,7 +140,11 @@ const RegisterFace: React.FC<Props> = ({ username, onSuccess, onCancel }) => {
         </div>
 
         {message && (
-          <p className="mt-4 text-sm font-medium text-gray-700">{message}</p>
+          <p className={`mt-4 text-sm font-medium ${
+            message.includes('✅') ? 'text-green-600' : 'text-red-600'
+          }`}>
+            {message}
+          </p>
         )}
       </div>
     </div>
@@ -133,4 +152,3 @@ const RegisterFace: React.FC<Props> = ({ username, onSuccess, onCancel }) => {
 };
 
 export default RegisterFace;
-
